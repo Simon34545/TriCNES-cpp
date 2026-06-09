@@ -1,5 +1,5 @@
 ﻿#include "TriCNES-cpp-benchmark.h"
-#include "Emulator.h"
+#include "./TriCNES/Emulator.h"
 
 #include <chrono>
 
@@ -13,6 +13,7 @@ int main(int argc, char* argv[])
 	TriCNES::Emulator emulator;
 	TriCNES::Cartridge cartridge(argv[1]);
     emulator.Cart = &cartridge;
+    cartridge.Emu = &emulator;
 
     auto t0 = std::chrono::steady_clock::now();
     double avg = 0.0f;

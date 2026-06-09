@@ -10,9 +10,9 @@ project ("TriCNES-cpp")
 
 
 # Add source to this project's executable.
-add_executable(${PROJECT_NAME} "src/TriCNES-cpp.cpp" )
+add_executable(${PROJECT_NAME} "src/TriCNES/Emulator.cpp" "src/TriCNES-cpp.cpp" )
 
-add_executable(${PROJECT_NAME}-benchmark "src/TriCNES-cpp-benchmark.cpp")
+add_executable(${PROJECT_NAME}-benchmark "src/TriCNES/Emulator.cpp" "src/TriCNES-cpp-benchmark.cpp")
 
 if (CMAKE_VERSION VERSION_GREATER 3.12)
   set_property(TARGET TriCNES-cpp PROPERTY CXX_STANDARD 20)
@@ -21,6 +21,6 @@ endif()
 # TODO: Add tests and install targets if needed.
 
 
-list(PREPEND CMAKE_PREFIX_PATH "C:/SDL2/")
+list(PREPEND CMAKE_PREFIX_PATH "C:/SDL/SDL2-2.32.10/")
 find_package(SDL2 REQUIRED)
 target_link_libraries(${PROJECT_NAME} PRIVATE SDL2::SDL2)
