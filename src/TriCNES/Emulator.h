@@ -121,7 +121,7 @@ namespace TriCNES
         };
 
         RamAdapterState CurrentState;
-        bool lookingForEndOfGap;
+        bool lookingForEndOfGap = false;
 
         void Clock();
 
@@ -490,6 +490,24 @@ namespace TriCNES
 
             DoReset = true; // This is used to force the first instruction at power on to be the RESET instruction.
             PPU_RESET = false; // I'm not even 100% certain my console has this behavior. I'll set it to false for now.
+
+            Screen = new uint[256 * 240]();
+            NTSCScreen = new uint[256 * 8 * 240]();
+            BorderedScreen = new uint[341 * 262]();
+            BorderedNTSCScreen = new uint[341 * 8 * 262]();
+            APU_Register = new byte[0x10]();
+            PPUBusDecay = new int[8]();
+            PPU_SpriteShiftRegisterL = new byte[8]();
+            PPU_SpriteShiftRegisterH = new byte[8]();
+            PPU_SpriteAttribute = new byte[8]();
+            PPU_SpritePattern = new byte[8]();
+            PPU_SpriteXposition = new byte[8]();
+            PPU_SpriteYposition = new byte[8]();
+            PPU_SpriteShifterCounter = new byte[8]();
+            PPU_2007_Read_Latches = new bool[5]();
+            PPU_2007_Write_Latches = new bool[5]();
+            NTSC_Samples = new float[257 * 8 + 24]();
+            Bordered_NTSC_Samples = new float[341 * 8 + 24]();
         }
 
         bool PPU_RESET = false;
@@ -11071,6 +11089,5 @@ namespace TriCNES
             delete[] NTSCScreen;
             delete[] BorderedNTSCScreen;
         }
-
     };
 }

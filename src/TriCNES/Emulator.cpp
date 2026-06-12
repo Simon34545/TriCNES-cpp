@@ -83,7 +83,7 @@ namespace TriCNES
         {
             std::ifstream file(FDSBIOS_filepath, std::ios::binary | std::ios::ate); // Reads the file from the provided file path, and stores every byte into an array.
             if (!file.is_open()) {
-                std::cerr << "Error opening file!" << std::endl;
+                std::cerr << "Error opening BIOS ROM file! " << FDSBIOS_filepath << std::endl;
             }
             std::streamsize size = file.tellg();
             file.seekg(0, std::ios::beg);
@@ -94,14 +94,14 @@ namespace TriCNES
                 std::cout << "Loaded ROM: " << FDSBIOS_filepath << std::endl;
             }
             else {
-                std::cerr << "Error reading file!" << std::endl;
+                std::cerr << "Error reading BIOS ROM file!" << std::endl;
                 return;
             }
 
             file.close();
 
             FDS = new DiskDrive();
-            FDS->InsertDisk(filepath);
+            if (!filepath.empty()) FDS->InsertDisk(filepath);
             PRGRAM = new byte[0x8000](); // The FDS has 32Kib of PRG RAM!
             CHRRAM = new byte[0x2000](); // and 8 Kib of CHR RAM.
             Name = filepath; // For debugging, it's nice to see the file name sometimes.

@@ -1,15 +1,28 @@
 ﻿#include "TriCNES-cpp.h"
 
-#define SCREEN_WIDTH    256
-#define SCREEN_HEIGHT   240
+#define BTN_POWER 1000
+#define BTN_RESET 1001
+#define BTN_CART 1002
+#define BTN_BIOS 1003
+#define BTN_DISK 1004
 
 static TriCNES::Emulator emulator;
 static TriCNES::Cartridge cartridge;
 
+static bool powered = false;
+
+static bool vsync = true;
+
+static std::string BIOS = "";
+static bool PendingDiskSelect = false;
+
 static SDL_Renderer* renderer;
 static SDL_Texture* buffer;
 static int* pixels = NULL;
-static int pitch = SCREEN_WIDTH * sizeof(int);
+static int pitch = 256 * sizeof(int);
+
+static SDL_AudioStream* stream;
+static SDL_Window* window;
 
 static double clockt = 1.0 / (21477272.0 / 12.0);
 static double samplet = 1.0 / 44100.0;
@@ -51,7 +64,7 @@ static void initR08(std::string filepath)
     memcpy(emulator.RAM, ram, 0x800);
 }
 
-static void render()
+static void frame()
 {
     auto t1 = std::chrono::steady_clock::now();
 
@@ -69,13 +82,16 @@ static void render()
     }
 
     t0 = t1;
+}
 
+static void render()
+{
     SDL_LockTexture(buffer,
         NULL,
         (void**)&pixels,
         &pitch);
 
-    memcpy(pixels, emulator.Screen, SCREEN_WIDTH * 240 * sizeof(int));
+    memcpy(pixels, emulator.Screen, 256 * 240 * sizeof(int));
 
     SDL_UnlockTexture(buffer);
     SDL_RenderTexture(renderer, buffer, NULL, NULL);
@@ -96,11 +112,16 @@ static void fillBuffer()
         {
             while (t < samplet)
             {
-                emulator._CoreCycleAdvance();
-                if (emulator.FrameAdvance_ReachedVBlank)
+                if (powered)
                 {
-                    render();
-                    emulator.FrameAdvance_ReachedVBlank = false;
+                    emulator._CoreCycleAdvance();
+
+                    if (emulator.FrameAdvance_ReachedVBlank)
+                    {
+                        if (vsync) render();
+                        frame();
+                        emulator.FrameAdvance_ReachedVBlank = false;
+                    }
                 }
                 t += clockt;
             }
@@ -144,43 +165,194 @@ static void SDLCALL audio(void* userdata, SDL_AudioStream* stream, int len, int 
     }
 };
 
-int main(int argc, char* argv[])
+static void power()
 {
-    if (argc < 2)
+
+    SDL_LockAudioStream(stream);
+
+    if (!powered)
     {
-        std::cout << "USAGE: TriCNES-cpp.exe nes|fds <...args>" << std::endl;
-        return 0;
-    }
+        emulator.~Emulator();
+        new (&emulator) TriCNES::Emulator();
 
-    if (argv[1][0] == 'n')
-    {
-        if (argc < 3)
-        {
-            std::cout << "USAGE: TriCNES-cpp.exe nes rom.nes <tas.r08>" << std::endl;
-            return 0;
-        }
-
-        cartridge = TriCNES::Cartridge(argv[2]);
-
-        if (argc == 4) {
-            initR08(argv[3]);
-        }
-    }
-    else if (argv[1][0] == 'f')
-    {
-        if (argc < 4)
-        {
-            std::cout << "USAGE: TriCNES-cpp.exe fds rom.fds bios.rom" << std::endl;
-            return 0;
-        }
-
-        cartridge = TriCNES::Cartridge(argv[2], argv[3]);
+        emulator.Cart = &cartridge;
+        cartridge.Emu = &emulator;
+        cartridge.MapperChip->Cart = &cartridge;
+        if (cartridge.FDS != nullptr) cartridge.FDS->Cart = &cartridge;
+        //if (cartridge.FDS != nullptr) cartridge.FDS->CurrentState = TriCNES::DiskDrive::RamAdapterState::RESET;
     }
     else
     {
-        std::cout << "No mode specified, exiting..." << std::endl;
+        for (int i = 0; i < 256 * 240; i++) emulator.Screen[i] = 0xFF000000;
+        render();
+    }
 
-        return 0;
+    powered = !powered;
+    SDL_UnlockAudioStream(stream);
+}
+
+static void reset()
+{
+    SDL_LockAudioStream(stream);
+    if (powered) emulator.Reset();
+    SDL_UnlockAudioStream(stream);
+}
+
+static void SDLCALL cartCallback(void* userdata, const char* const* file, int filter)
+{
+    if (file == NULL || file[0] == NULL) return;
+
+    SDL_LockAudioStream(stream);
+
+    cartridge = TriCNES::Cartridge(file[0]);
+
+    if (powered)
+    {
+        emulator.Cart = &cartridge;
+        cartridge.Emu = &emulator;
+        cartridge.MapperChip->Cart = &cartridge;
+    }
+    else
+    {
+        power();
+    }
+
+    SDL_UnlockAudioStream(stream);
+}
+
+static void cart()
+{
+    const SDL_DialogFileFilter filters[] = { {"NES ROMs", "nes;bin"} };
+    SDL_ShowOpenFileDialog(cartCallback, NULL, window, filters, 1, NULL, false);
+}
+
+static void SDLCALL biosCallback(void* userdata, const char* const* file, int filter)
+{
+    if (file == NULL || file[0] == NULL)
+    {
+        PendingDiskSelect = false;
+        return;
+    }
+
+    BIOS = file[0];
+
+    if (PendingDiskSelect)
+    {
+        PendingDiskSelect = false;
+        disk();
+    }
+
+    /*SDL_LockAudioStream(stream);
+
+    cartridge = TriCNES::Cartridge("", BIOS);
+
+    emulator.Cart = &cartridge;
+    cartridge.Emu = &emulator;
+    cartridge.MapperChip->Cart = &cartridge;
+    if (cartridge.FDS != nullptr) cartridge.FDS->Cart = &cartridge;
+
+    SDL_UnlockAudioStream(stream);*/
+}
+
+static void bios()
+{
+    const SDL_DialogFileFilter filters[] = { {"FDS BIOS ROMs", "rom;bin"} };
+    SDL_ShowOpenFileDialog(biosCallback, NULL, window, filters, 1, NULL, false);
+}
+
+static void SDLCALL diskCallback(void* userdata, const char* const* file, int filter)
+{
+    if (file == NULL || file[0] == NULL) return;
+
+    SDL_LockAudioStream(stream);
+
+    if (powered && cartridge.FDS != nullptr)
+    {
+        emulator.Cart = &cartridge;
+        cartridge.Emu = &emulator;
+        cartridge.MapperChip->Cart = &cartridge;
+        cartridge.FDS->Cart = &cartridge;
+
+        cartridge.FDS->InsertDisk(file[0]);
+    }
+    else
+    {
+        cartridge = TriCNES::Cartridge(file[0], BIOS);
+
+        if (!powered)
+        {
+            power();
+        }
+        else
+        {
+            cartridge.Emu = &emulator;
+            cartridge.MapperChip->Cart = &cartridge;
+            cartridge.FDS->Cart = &cartridge;
+        }
+    }
+
+    SDL_UnlockAudioStream(stream);
+}
+
+static void disk()
+{
+    if (BIOS.empty())
+    {
+        PendingDiskSelect = true;
+        Alert("Missing FDS BIOS", "Please select an FDS BIOS ROM.", bios);
+        return;
+    }
+
+    const SDL_DialogFileFilter filters[] = { {"FDS Disk ROMs", "fds;bin"} };
+    SDL_ShowOpenFileDialog(diskCallback, NULL, window, filters, 1, NULL, false);
+}
+
+int main(int argc, char* argv[])
+{
+    cartridge.MapperChip = new TriCNES::Mapper_NULL();
+
+    if (argc > 1)
+    {
+        if (argv[1][0] == 'n')
+        {
+            if (argc < 3)
+            {
+                std::cout << "USAGE: TriCNES-cpp.exe nes rom.nes <tas.r08>" << std::endl;
+                return 0;
+            }
+
+            cartridge = TriCNES::Cartridge(argv[2]);
+
+            if (argc == 4) {
+                initR08(argv[3]);
+            }
+
+            emulator.Cart = &cartridge;
+            cartridge.Emu = &emulator;
+            cartridge.MapperChip->Cart = &cartridge;
+            powered = true;
+        }
+        else if (argv[1][0] == 'f')
+        {
+            if (argc < 4)
+            {
+                std::cout << "USAGE: TriCNES-cpp.exe fds rom.fds bios.rom" << std::endl;
+                return 0;
+            }
+
+            cartridge = TriCNES::Cartridge(argv[2], argv[3]);
+
+            emulator.Cart = &cartridge;
+            cartridge.Emu = &emulator;
+            cartridge.MapperChip->Cart = &cartridge;
+            powered = true;
+        }
+        else
+        {
+            std::cout << "USAGE: TriCNES-cpp.exe nes|fds <...args>" << std::endl;
+
+            return 0;
+        }
     }
 
     if (!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO))
@@ -190,17 +362,8 @@ int main(int argc, char* argv[])
         return 0;
     }
 
-#if defined linux && SDL_VERSION_ATLEAST(2, 0, 8)
-    // Disable compositor bypass
-    if (!SDL_SetHint(SDL_HINT_VIDEO_X11_NET_WM_BYPASS_COMPOSITOR, "0"))
-    {
-        std::cout << "SDL can not disable compositor bypass!" << std::endl;
-        return 0;
-    }
-#endif
-
-    SDL_Window* window = SDL_CreateWindow("TriCNES C++",
-        SCREEN_WIDTH, SCREEN_HEIGHT, NULL);
+    window = SDL_CreateWindow("TriCNES C++",
+        256, 240, NULL);
     if (window == NULL)
     {
         std::cout << "Window could not be created!" << std::endl
@@ -225,12 +388,8 @@ int main(int argc, char* argv[])
             req.format = SDL_AUDIO_S16LE;
             req.channels = 1;
 
-            emulator.Cart = &cartridge;
-            cartridge.Emu = &emulator;
-            cartridge.MapperChip->Cart = &cartridge;
-
             const SDL_AudioSpec spec = { SDL_AUDIO_S16LE, 2, 44100 };
-            SDL_AudioStream* stream = SDL_OpenAudioDeviceStream(SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK, &req, audio, NULL);
+            stream = SDL_OpenAudioDeviceStream(SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK, &req, audio, NULL);
 
             if (stream == NULL)
             {
@@ -249,21 +408,29 @@ int main(int argc, char* argv[])
             buffer = SDL_CreateTexture(renderer,
                 SDL_PIXELFORMAT_ARGB8888,
                 SDL_TEXTUREACCESS_STREAMING,
-                SCREEN_WIDTH,
+                256,
                 240);
 
             bool quit = false;
 
+            InitGUI(window);
+
+            MENU console = AddMenu("Console");
+
+            AddMenuItem(console, BTN_POWER, "Power", power);
+            AddMenuItem(console, BTN_RESET, "Reset", reset);
+            AddMenuItem(console, BTN_CART, "Insert Cartridge", cart);
+            AddMenuItem(console, BTN_BIOS, "Load FDS BIOS", bios);
+            AddMenuItem(console, BTN_DISK, "Insert FDS Disk", disk);
+
+            RefreshMenuBar();
 
             while (!quit)
             {
                 SDL_Event e;
-                
-                SDL_LockAudioStream(stream);
-                fillBuffer();
-                SDL_UnlockAudioStream(stream);
 
-                while (SDL_PollEvent(&e)) {
+                while (SDL_PollEvent(&e))
+                {
                     if (e.type == SDL_EVENT_QUIT)
                     {
                         quit = true;
@@ -329,6 +496,11 @@ int main(int argc, char* argv[])
                         }
                     }
                 }
+
+                SDL_LockAudioStream(stream);
+                fillBuffer();
+                if (!vsync) render();
+                SDL_UnlockAudioStream(stream);
             }
 
             SDL_DestroyRenderer(renderer);
