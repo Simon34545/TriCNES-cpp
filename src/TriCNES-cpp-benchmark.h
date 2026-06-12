@@ -1,8 +1,4 @@
-﻿// TriCNES-cpp.h : Include file for standard system include files,
-// or project specific include files.
-
+﻿// TriCNES-cpp-benchmark: Performance test for emulator core.
 #pragma once
 
 #include <iostream>
-
-// TODO: Reference additional headers your program requires here.

@@ -1,8 +1,10 @@
-﻿// TriCNES-cpp.h : Include file for standard system include files,
-// or project specific include files.
-
-#pragma once
+﻿#pragma once
 
 #include <iostream>
+#include <chrono>
 
-// TODO: Reference additional headers your program requires here.
+#include "./TriCNES/Emulator.h"
+#include "./TriCNES/Math.h"
+
+#define SDL_MAIN_HANDLED
+#include <SDL3/SDL.h>

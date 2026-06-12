@@ -21,6 +21,6 @@ endif()
 # TODO: Add tests and install targets if needed.
 
 
-list(PREPEND CMAKE_PREFIX_PATH "C:/SDL/SDL2-2.32.10/")
-find_package(SDL2 REQUIRED)
-target_link_libraries(${PROJECT_NAME} PRIVATE SDL2::SDL2)
+list(PREPEND CMAKE_PREFIX_PATH "C:/SDL/SDL3-3.4.10/")
+find_package(SDL3 REQUIRED)
+target_link_libraries(${PROJECT_NAME} PRIVATE SDL3::SDL3)

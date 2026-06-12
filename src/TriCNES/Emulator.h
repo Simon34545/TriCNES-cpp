@@ -57,6 +57,8 @@ namespace TriCNES
 
         int PRGVRAMLength = 0;
 
+        Cartridge() = default;
+
         Cartridge(std::string filepath); // Constructor from file path
 
         DiskDrive* FDS = nullptr;   // The famicom disk system disk drive.
@@ -131,7 +133,7 @@ namespace TriCNES
             // I haven't found any documentation on this stuff, so I'm just copying what Neshawk does.
             // TODO: Learn about this?
 
-            byte* ret = new byte[65500];
+            byte* ret = new byte[65500]();
             int idx = 0;
             int indx = 0;
 
@@ -232,17 +234,17 @@ namespace TriCNES
 
         bool APU_PutCycle = false; // The APU needs to know if this is a "get" or "put" cycle.
 
-        byte* OAM = new byte[0x100];         // Object Attribute Memory is 256 bytes.
-        byte* OAM2 = new byte[32];   // Secondary OAM is specifically the 8 objects being rendered on the current scanline.
+        byte* OAM = new byte[0x100]();         // Object Attribute Memory is 256 bytes.
+        byte* OAM2 = new byte[32]();   // Secondary OAM is specifically the 8 objects being rendered on the current scanline.
         byte SecondaryOAMSize = 0;            // This is a count of how many objects are currently in secondary OAM.
         byte OAM2Address = 0;         // During sprite evaluation, the current SecondaryOAM Address is used to track what byte is set of a given dot.
         bool SecondaryOAMFull = false;        // If full and another object exists in the same scanline, the PPU Sprite OVerflow flag is set.
         byte SpriteEvaluationTick = 0;        // During sprite evaluation, there's a switch statement that determines what to do on a given dot. This determines which action to take.
         bool OAMAddressOverflowedDuringSpriteEvaluation = false; // If the OAM address overflows during sprite evaluation, there's a few bugs that can occur.
 
-        byte* RAM = new byte[0x800];    // There are 0x800 bytes of RAM
-        byte* VRAM = new byte[0x800];   // There are 0x800 bytes of VRAM
-        byte* PaletteRAM = new byte[0x20]; // there are 0x20 bytes of palette RAM
+        byte* RAM = new byte[0x800]();    // There are 0x800 bytes of RAM
+        byte* VRAM = new byte[0x800]();   // There are 0x800 bytes of VRAM
+        byte* PaletteRAM = new byte[0x20](); // there are 0x20 bytes of palette RAM
 
         ushort programCounter = 0;   // The PC. What address is currently being executed?
         byte opCode = 0; // The first CPU cycle of an instruction will read the opcode. This determines how the rest of the cycles will behave.
@@ -328,10 +330,10 @@ namespace TriCNES
     private:
         int chosenColor; // During screen rendering, this value is the index into the color array.
     public:
-        uint* Screen = new uint[256 * 240];
-        uint* NTSCScreen = new uint[256 * 8 * 240];
-        uint* BorderedScreen = new uint[341 * 262];
-        uint* BorderedNTSCScreen = new uint[341 * 8 * 262];
+        uint* Screen = new uint[256 * 240]();
+        uint* NTSCScreen = new uint[256 * 8 * 240]();
+        uint* BorderedScreen = new uint[341 * 262]();
+        uint* BorderedNTSCScreen = new uint[341 * 8 * 262]();
 
         //Debugging
         bool Logging = false;    // If set, the tracelogger will record all instructions ran.
@@ -345,7 +347,7 @@ namespace TriCNES
             X = 0;
             Y = 0;
             VRAM = new byte[0x800];
-            OAM = new byte[0x100];
+            OAM = new byte[0x100]();
             OAM2 = new byte[32];
             for (int oam2_init = 0; oam2_init < 32; oam2_init++)
             {
@@ -749,7 +751,7 @@ namespace TriCNES
         bool APU_ImplicitAbortDMC4015 = false;   // An edge case of the DMC DMA, where regardless of the buffer being empty, there will be a 1-cycle DMA that gets aborted 2 cycles after the load DMA ends
         bool APU_SetImplicitAbortDMC4015 = false;// This is used to make that happen.
 
-        byte* APU_Register = new byte[0x10]; // Instead of making a series of variables, I made an array here for some reason.
+        byte* APU_Register = new byte[0x10](); // Instead of making a series of variables, I made an array here for some reason.
 
         bool APU_FrameCounterMode = false;       // Bit 7 of $4017 : Determines if the APU frame counter is using the 4 step or 5 step modes.
         bool APU_FrameCounterInhibitIRQ = false; // Bit 6 of $4017 : If set, prevents the APU from creating IRQ's
@@ -1155,7 +1157,7 @@ namespace TriCNES
         // PPU variables
     public:
         byte PPUBus = 0; // The databus of the Picture Processing Unit
-        int* PPUBusDecay = new int[8];
+        int* PPUBusDecay = new int[8]();
     private:
         const int PPUBusDecayConstant = 1786830; // 20 frames. Approximately how long it takes for the PPU bus to decay on my console.
     public:
@@ -1204,15 +1206,15 @@ namespace TriCNES
         byte PPU_FineXScroll = 0; // Set when writing to address $2005. 3 bits. This is up to a 7 pixel offset when rendering the screen.
 
     private:
-        byte* PPU_SpriteShiftRegisterL = new byte[8]; // 8 bit shift register for a sprite's low bit plane. Secondary OAM can have up to 8 object in it.
-        byte* PPU_SpriteShiftRegisterH = new byte[8]; // 8 bit shift register for a sprite's high bit plane. Secondary OAM can have up to 8 object in it.
+        byte* PPU_SpriteShiftRegisterL = new byte[8](); // 8 bit shift register for a sprite's low bit plane. Secondary OAM can have up to 8 object in it.
+        byte* PPU_SpriteShiftRegisterH = new byte[8](); // 8 bit shift register for a sprite's high bit plane. Secondary OAM can have up to 8 object in it.
 
-        byte* PPU_SpriteAttribute = new byte[8]; // Secondary OAM attribute values. Secondary OAM can have up to 8 objects in it.
-        byte* PPU_SpritePattern = new byte[8]; // Secondary OAM pattern values. Secondary OAM can have up to 8 objects in it.
-        byte* PPU_SpriteXposition = new byte[8]; // Secondary OAM x positions. Secondary OAM can have up to 8 objects in it.
-        byte* PPU_SpriteYposition = new byte[8]; // Secondary OAM y positions. Secondary OAM can have up to 8 objects in it.
+        byte* PPU_SpriteAttribute = new byte[8](); // Secondary OAM attribute values. Secondary OAM can have up to 8 objects in it.
+        byte* PPU_SpritePattern = new byte[8](); // Secondary OAM pattern values. Secondary OAM can have up to 8 objects in it.
+        byte* PPU_SpriteXposition = new byte[8](); // Secondary OAM x positions. Secondary OAM can have up to 8 objects in it.
+        byte* PPU_SpriteYposition = new byte[8](); // Secondary OAM y positions. Secondary OAM can have up to 8 objects in it.
 
-        byte* PPU_SpriteShifterCounter = new byte[8]; // This counter tracks how long until the objects are drawn.
+        byte* PPU_SpriteShifterCounter = new byte[8](); // This counter tracks how long until the objects are drawn.
 
 
         bool PPU_NextScanlineContainsSpriteZero = false;    // If this upcoming scanline contains sprite zero
@@ -1712,7 +1714,7 @@ namespace TriCNES
     public:
         bool PPU_2007_Read = false;
         bool PPU_2007_Read_SR = false;
-        bool* PPU_2007_Read_Latches = new bool[5];
+        bool* PPU_2007_Read_Latches = new bool[5]();
         bool PPU_2007_PD_RB = false;
         bool PPU_2007_ReadALE = false;
         bool PPU_2007_Read_H0_Latch = false;
@@ -1722,7 +1724,7 @@ namespace TriCNES
 
         bool PPU_2007_Write = false;
         bool PPU_2007_Write_SR = false;
-        bool* PPU_2007_Write_Latches = new bool[5];
+        bool* PPU_2007_Write_Latches = new bool[5]();
         bool PPU_2007_DB_PAR = false;
         bool PPU_2007_WriteALE = false;
         bool PPU_2007_TStep_Latch = false;
@@ -2155,8 +2157,8 @@ namespace TriCNES
     public:
         byte ntsc_signal = 0;
         byte ntsc_signal_of_dot_0 = 0;
-        float* NTSC_Samples = new float[257 * 8 + 24];
-        float* Bordered_NTSC_Samples = new float[341 * 8 + 24];
+        float* NTSC_Samples = new float[257 * 8 + 24]();
+        float* Bordered_NTSC_Samples = new float[341 * 8 + 24]();
     private:
         static constexpr float Levels[] =
         {

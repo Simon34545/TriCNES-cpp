@@ -46,13 +46,13 @@ namespace TriCNES
 
             PRGROM = new byte[PRGROMLength]; // 0x4000 bytes of PRG ROM, multiplied by byte 4 of the iNES header.
             CHRROM = new byte[CHRROMLength]; // 0x2000 bytes of CHR ROM, multiplied by byte 5 of the iNES header.
-            CHRRAM = new byte[CHRRAMLength];            // CHR RAM always has 2 kibibytes
+            CHRRAM = new byte[CHRRAMLength]();            // CHR RAM always has 2 kibibytes
 
             NametableHorizontalMirroring = ((ROM[6] & 1) == 0); // The style in which the nametable is mirrored is part of the iNES header.
             AlternativeNametableArrangement = ((ROM[6] & 8) != 0); // Some mappers support other arrangements.
             if (AlternativeNametableArrangement)
             {
-                PRGVRAM = new byte[0x800];
+                PRGVRAM = new byte[0x800]();
                 PRGVRAMLength = 0x800;
             }
 
@@ -62,7 +62,7 @@ namespace TriCNES
             // at this point, the ROM byte array is no longer needed, so null it to free up its memory.
             delete[] ROM;
 
-            PRGRAM = new byte[PRGRAMLength]; // PRG RAM probably has different lengths depending on the mapper, but this emulator doesn't yet support any mappers in which that length isn't 2 kibibytes.
+            PRGRAM = new byte[PRGRAMLength](); // PRG RAM probably has different lengths depending on the mapper, but this emulator doesn't yet support any mappers in which that length isn't 2 kibibytes.
 
             Name = filepath; // For debugging, it's nice to see the file name sometimes.
             switch (MemoryMapper)
@@ -102,8 +102,8 @@ namespace TriCNES
 
             FDS = new DiskDrive();
             FDS->InsertDisk(filepath);
-            PRGRAM = new byte[0x8000]; // The FDS has 32Kib of PRG RAM!
-            CHRRAM = new byte[0x2000]; // and 8 Kib of CHR RAM.
+            PRGRAM = new byte[0x8000](); // The FDS has 32Kib of PRG RAM!
+            CHRRAM = new byte[0x2000](); // and 8 Kib of CHR RAM.
             Name = filepath; // For debugging, it's nice to see the file name sometimes.
 
             MapperChip = new Mapper_FDS(ROM);
