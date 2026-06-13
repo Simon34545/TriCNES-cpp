@@ -12,10 +12,12 @@ static HMENU hMenuBar;
 #define MENU_ID UINT_PTR
 #define MENU HMENU
 
+#define MENU_CALLBACK(name) static void name(MENU_ID caller)
+
 struct MenuCallback
 {
 	MENU_ID id;
-	void (*callback)();
+	void (*callback)(MENU_ID caller);
 };
 
 std::vector<MenuCallback> callbacks;
@@ -28,7 +30,7 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam, voi
 		{
 			if (callback.id == id)
 			{
-				callback.callback();
+				callback.callback(callback.id);
 				break;
 			}
 		}
@@ -66,11 +68,19 @@ MENU AddMenu(const char* label)
 	return hMenu;
 }
 
-void AddMenuItem(MENU menu, MENU_ID id, const char* label, void (*handler)())
+void AddMenuItem(MENU menu, MENU_ID id, const char* label, void (*handler)(MENU_ID caller))
 {
 	AppendMenuA(menu, MF_STRING, id, label);
 
 	callbacks.push_back({ id, handler });
+}
+
+MENU AddSubMenu(MENU menu, const char* label)
+{
+	HMENU hMenu = CreatePopupMenu();
+	AppendMenuA(menu, MF_POPUP, (UINT_PTR)hMenu, label);
+
+	return hMenu;
 }
 
 void RefreshMenuBar()
@@ -79,11 +89,11 @@ void RefreshMenuBar()
 }
 
 
-void Alert(const char* title, const char* message, void (*handler)())
+void Alert(const char* title, const char* message, void (*handler)(MENU_ID caller))
 {
 	MessageBoxA(hWnd, message, title, MB_OK);
 
-	handler();
+	handler(NULL);
 }
 
 #else

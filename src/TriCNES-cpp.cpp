@@ -3,32 +3,37 @@
 #define BTN_POWER 1000
 #define BTN_RESET 1001
 #define BTN_CART 1002
-#define BTN_BIOS 1003
-#define BTN_DISK 1004
+#define BTN_RMCART 1003
+#define BTN_BIOS 1004
+#define BTN_DISK 1005
 
-static TriCNES::Emulator emulator;
-static TriCNES::Cartridge cartridge;
-
-static bool powered = false;
-
-static bool vsync = true;
-
-static std::string BIOS = "";
-static bool PendingDiskSelect = false;
-
+// SDL vars
 static SDL_Renderer* renderer;
 static SDL_Texture* buffer;
 static int* pixels = NULL;
 static int pitch = 256 * sizeof(int);
-
 static SDL_AudioStream* stream;
 static SDL_Window* window;
 
+// Emulator vars
+static TriCNES::Emulator emulator;
+static TriCNES::Cartridge cartridge;
+static bool powered = false;
+static bool vsync = true;
+static std::string BIOS = "";
+static bool PendingDiskSelect = false;
+
+// Audio vars
+static Sint16* bufAudio = new Sint16[512];
+static int bufReadIdx = 0;
+static int bufWriteIdx = 0;
+static int bufHas = 0;
+static int bufNeeds = 512;
 static double clockt = 1.0 / (21477272.0 / 12.0);
 static double samplet = 1.0 / 44100.0;
-
 static double t = 0;
 
+// Performance vars
 static auto t0 = std::chrono::steady_clock::now();
 static double avg = 60.0f;
 static int total = 0;
@@ -98,12 +103,6 @@ static void render()
     SDL_RenderPresent(renderer);
 }
 
-static Sint16* bufAudio = new Sint16[512];
-static int bufReadIdx = 0;
-static int bufWriteIdx = 0;
-static int bufHas = 0;
-static int bufNeeds = 512;
-
 static void fillBuffer()
 {
     while (bufNeeds > 0)
@@ -165,7 +164,7 @@ static void SDLCALL audio(void* userdata, SDL_AudioStream* stream, int len, int 
     }
 };
 
-static void power()
+MENU_CALLBACK(power)
 {
 
     SDL_LockAudioStream(stream);
@@ -191,7 +190,7 @@ static void power()
     SDL_UnlockAudioStream(stream);
 }
 
-static void reset()
+MENU_CALLBACK(reset)
 {
     SDL_LockAudioStream(stream);
     if (powered) emulator.Reset();
@@ -214,16 +213,26 @@ static void SDLCALL cartCallback(void* userdata, const char* const* file, int fi
     }
     else
     {
-        power();
+        power(NULL);
     }
 
     SDL_UnlockAudioStream(stream);
 }
 
-static void cart()
+MENU_CALLBACK(cart)
 {
     const SDL_DialogFileFilter filters[] = { {"NES ROMs", "nes;bin"} };
     SDL_ShowOpenFileDialog(cartCallback, NULL, window, filters, 1, NULL, false);
+}
+
+MENU_CALLBACK(rmcart)
+{
+    cartridge = TriCNES::Cartridge();
+    cartridge.MapperChip = new TriCNES::Mapper_NULL();
+
+    emulator.Cart = &cartridge;
+    cartridge.Emu = &emulator;
+    cartridge.MapperChip->Cart = &cartridge;
 }
 
 static void SDLCALL biosCallback(void* userdata, const char* const* file, int filter)
@@ -239,7 +248,7 @@ static void SDLCALL biosCallback(void* userdata, const char* const* file, int fi
     if (PendingDiskSelect)
     {
         PendingDiskSelect = false;
-        disk();
+        disk(NULL);
     }
 
     /*SDL_LockAudioStream(stream);
@@ -254,7 +263,7 @@ static void SDLCALL biosCallback(void* userdata, const char* const* file, int fi
     SDL_UnlockAudioStream(stream);*/
 }
 
-static void bios()
+MENU_CALLBACK(bios)
 {
     const SDL_DialogFileFilter filters[] = { {"FDS BIOS ROMs", "rom;bin"} };
     SDL_ShowOpenFileDialog(biosCallback, NULL, window, filters, 1, NULL, false);
@@ -281,7 +290,7 @@ static void SDLCALL diskCallback(void* userdata, const char* const* file, int fi
 
         if (!powered)
         {
-            power();
+            power(NULL);
         }
         else
         {
@@ -294,7 +303,7 @@ static void SDLCALL diskCallback(void* userdata, const char* const* file, int fi
     SDL_UnlockAudioStream(stream);
 }
 
-static void disk()
+MENU_CALLBACK(disk)
 {
     if (BIOS.empty())
     {
@@ -307,7 +316,7 @@ static void disk()
     SDL_ShowOpenFileDialog(diskCallback, NULL, window, filters, 1, NULL, false);
 }
 
-int main(int argc, char* argv[])
+SDL_AppResult SDL_AppInit(void** appstate, int argc, char* argv[])
 {
     cartridge.MapperChip = new TriCNES::Mapper_NULL();
 
@@ -318,7 +327,7 @@ int main(int argc, char* argv[])
             if (argc < 3)
             {
                 std::cout << "USAGE: TriCNES-cpp.exe nes rom.nes <tas.r08>" << std::endl;
-                return 0;
+                return SDL_APP_SUCCESS;
             }
 
             cartridge = TriCNES::Cartridge(argv[2]);
@@ -337,7 +346,7 @@ int main(int argc, char* argv[])
             if (argc < 4)
             {
                 std::cout << "USAGE: TriCNES-cpp.exe fds rom.fds bios.rom" << std::endl;
-                return 0;
+                return SDL_APP_SUCCESS;
             }
 
             cartridge = TriCNES::Cartridge(argv[2], argv[3]);
@@ -351,165 +360,119 @@ int main(int argc, char* argv[])
         {
             std::cout << "USAGE: TriCNES-cpp.exe nes|fds <...args>" << std::endl;
 
-            return 0;
+            return SDL_APP_SUCCESS;
         }
     }
 
     if (!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO))
     {
-        std::cout << "SDL could not be initialized!" << std::endl
-            << "SDL_Error: " << SDL_GetError() << std::endl;
-        return 0;
+        std::cout << "SDL could not be initialized!" << std::endl << "SDL_Error: " << SDL_GetError() << std::endl;
+        return SDL_APP_FAILURE;
     }
 
-    window = SDL_CreateWindow("TriCNES C++",
-        256, 240, NULL);
+    window = SDL_CreateWindow("TriCNES C++", 256, 240, NULL);
+
     if (window == NULL)
     {
-        std::cout << "Window could not be created!" << std::endl
-            << "SDL_Error: " << SDL_GetError() << std::endl;
+        std::cout << "Window could not be created!" << std::endl << "SDL_Error: " << SDL_GetError() << std::endl;
+        return SDL_APP_FAILURE;
     }
-    else
+
+    renderer = SDL_CreateRenderer(window, NULL);
+
+    if (renderer == NULL)
     {
-        // Create renderer
-        renderer = SDL_CreateRenderer(window, NULL);
-        if (renderer == NULL)
-        {
-            std::cout << "Renderer could not be created!" << std::endl
-                << "SDL_Error: " << SDL_GetError() << std::endl;
-        }
-        else
-        {
-            SDL_AudioSpec req;
-
-            SDL_zero(req);
-
-            req.freq = 44100;
-            req.format = SDL_AUDIO_S16LE;
-            req.channels = 1;
-
-            const SDL_AudioSpec spec = { SDL_AUDIO_S16LE, 2, 44100 };
-            stream = SDL_OpenAudioDeviceStream(SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK, &req, audio, NULL);
-
-            if (stream == NULL)
-            {
-                std::cout << "SDL_OpenAudioDeviceStream failed: " << SDL_GetError() << std::endl;
-			}
-            else
-            {
-                printf("----------------\n");
-                printf("sample rate:%d\n", req.freq);
-                printf("channels:%d\n", req.channels);
-                printf("----------------\n");
-
-                SDL_ResumeAudioDevice(SDL_GetAudioStreamDevice(stream));
-            }
-
-            buffer = SDL_CreateTexture(renderer,
-                SDL_PIXELFORMAT_ARGB8888,
-                SDL_TEXTUREACCESS_STREAMING,
-                256,
-                240);
-
-            bool quit = false;
-
-            InitGUI(window);
-
-            MENU console = AddMenu("Console");
-
-            AddMenuItem(console, BTN_POWER, "Power", power);
-            AddMenuItem(console, BTN_RESET, "Reset", reset);
-            AddMenuItem(console, BTN_CART, "Insert Cartridge", cart);
-            AddMenuItem(console, BTN_BIOS, "Load FDS BIOS", bios);
-            AddMenuItem(console, BTN_DISK, "Insert FDS Disk", disk);
-
-            RefreshMenuBar();
-
-            while (!quit)
-            {
-                SDL_Event e;
-
-                while (SDL_PollEvent(&e))
-                {
-                    if (e.type == SDL_EVENT_QUIT)
-                    {
-                        quit = true;
-                    }
-                    else if (e.type == SDL_EVENT_KEY_DOWN)
-                    {
-                        switch (e.key.key)
-                        {
-                        case SDLK_X:
-                            emulator.ControllerPort1 |= 0x80;
-                            break;
-                        case SDLK_Z:
-                            emulator.ControllerPort1 |= 0x40;
-                            break;
-                        case SDLK_RSHIFT:
-                            emulator.ControllerPort1 |= 0x20;
-                            break;
-                        case SDLK_RETURN:
-                            emulator.ControllerPort1 |= 0x10;
-                            break;
-                        case SDLK_UP:
-                            emulator.ControllerPort1 |= 0x08;
-                            break;
-                        case SDLK_DOWN:
-                            emulator.ControllerPort1 |= 0x04;
-                            break;
-                        case SDLK_LEFT:
-                            emulator.ControllerPort1 |= 0x02;
-                            break;
-                        case SDLK_RIGHT:
-                            emulator.ControllerPort1 |= 0x01;
-                            break;
-                        }
-                    }
-                    else if (e.type == SDL_EVENT_KEY_UP)
-                    {
-                        switch (e.key.key)
-                        {
-                        case SDLK_X:
-                            emulator.ControllerPort1 &= ~0x80;
-                            break;
-                        case SDLK_Z:
-                            emulator.ControllerPort1 &= ~0x40;
-                            break;
-                        case SDLK_RSHIFT:
-                            emulator.ControllerPort1 &= ~0x20;
-                            break;
-                        case SDLK_RETURN:
-                            emulator.ControllerPort1 &= ~0x10;
-                            break;
-                        case SDLK_UP:
-                            emulator.ControllerPort1 &= ~0x08;
-                            break;
-                        case SDLK_DOWN:
-                            emulator.ControllerPort1 &= ~0x04;
-                            break;
-                        case SDLK_LEFT:
-                            emulator.ControllerPort1 &= ~0x02;
-                            break;
-                        case SDLK_RIGHT:
-                            emulator.ControllerPort1 &= ~0x01;
-                            break;
-                        }
-                    }
-                }
-
-                SDL_LockAudioStream(stream);
-                fillBuffer();
-                if (!vsync) render();
-                SDL_UnlockAudioStream(stream);
-            }
-
-            SDL_DestroyRenderer(renderer);
-        }
-
-        SDL_DestroyWindow(window);
+        std::cout << "Renderer could not be created!" << std::endl << "SDL_Error: " << SDL_GetError() << std::endl;
+        return SDL_APP_FAILURE;
     }
 
-    SDL_Quit();
+    SDL_AudioSpec req;
 
-	return 0;
+    SDL_zero(req);
+
+    req.freq = 44100;
+    req.format = SDL_AUDIO_S16LE;
+    req.channels = 1;
+
+    const SDL_AudioSpec spec = { SDL_AUDIO_S16LE, 2, 44100 };
+    stream = SDL_OpenAudioDeviceStream(SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK, &req, audio, NULL);
+
+    if (stream == NULL)
+    {
+        std::cout << "SDL_OpenAudioDeviceStream failed: " << SDL_GetError() << std::endl;
+        return SDL_APP_FAILURE;
+    }
+    
+    SDL_ResumeAudioDevice(SDL_GetAudioStreamDevice(stream));
+
+    buffer = SDL_CreateTexture(renderer,
+        SDL_PIXELFORMAT_ARGB8888,
+        SDL_TEXTUREACCESS_STREAMING,
+        256,
+        240);
+
+    InitGUI(window);
+
+    MENU console = AddMenu("Console");
+
+    AddMenuItem(console, BTN_POWER, "Power", power);
+    AddMenuItem(console, BTN_RESET, "Reset", reset);
+    AddMenuItem(console, BTN_CART, "Insert Cartridge", cart);
+    AddMenuItem(console, BTN_RMCART, "Remove Cartridge", rmcart);
+    AddMenuItem(console, BTN_BIOS, "Load FDS BIOS", bios);
+    AddMenuItem(console, BTN_DISK, "Insert FDS Disk", disk);
+
+    RefreshMenuBar();
+
+	return SDL_APP_CONTINUE;
 }
+
+SDL_AppResult SDL_AppIterate(void* appstate)
+{
+    SDL_LockAudioStream(stream);
+    fillBuffer();
+    if (!vsync) render();
+    SDL_UnlockAudioStream(stream);
+
+    return SDL_APP_CONTINUE;
+}
+
+SDL_AppResult SDL_AppEvent(void* appstate, SDL_Event* e)
+{
+    if (e->type == SDL_EVENT_QUIT)
+    {
+        return SDL_APP_SUCCESS;
+    }
+    else if (e->type == SDL_EVENT_KEY_DOWN)
+    {
+        switch (e->key.key)
+        {
+        case SDLK_X:      emulator.ControllerPort1 |= 0x80; break;
+        case SDLK_Z:      emulator.ControllerPort1 |= 0x40; break;
+        case SDLK_RSHIFT: emulator.ControllerPort1 |= 0x20; break;
+        case SDLK_RETURN: emulator.ControllerPort1 |= 0x10; break;
+        case SDLK_UP:     emulator.ControllerPort1 |= 0x08; break;
+        case SDLK_DOWN:   emulator.ControllerPort1 |= 0x04; break;
+        case SDLK_LEFT:   emulator.ControllerPort1 |= 0x02; break;
+        case SDLK_RIGHT:  emulator.ControllerPort1 |= 0x01; break;
+        }
+    }
+    else if (e->type == SDL_EVENT_KEY_UP)
+    {
+        switch (e->key.key)
+        {
+        case SDLK_X:      emulator.ControllerPort1 &= ~0x80; break;
+        case SDLK_Z:      emulator.ControllerPort1 &= ~0x40; break;
+        case SDLK_RSHIFT: emulator.ControllerPort1 &= ~0x20; break;
+        case SDLK_RETURN: emulator.ControllerPort1 &= ~0x10; break;
+        case SDLK_UP:     emulator.ControllerPort1 &= ~0x08; break;
+        case SDLK_DOWN:   emulator.ControllerPort1 &= ~0x04; break;
+        case SDLK_LEFT:   emulator.ControllerPort1 &= ~0x02; break;
+        case SDLK_RIGHT:  emulator.ControllerPort1 &= ~0x01; break;
+        }
+    }
+
+    return SDL_APP_CONTINUE;
+}
+
+void SDL_AppQuit(void* appstate, SDL_AppResult result) { ; };
