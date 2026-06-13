@@ -222,7 +222,7 @@ MENU_CALLBACK(disk)
 
 MENU_CALLBACK(save)
 {
-    int i;
+    int i = 0;
 
     switch (caller)
     {
@@ -241,7 +241,7 @@ MENU_CALLBACK(save)
 
 MENU_CALLBACK(load)
 {
-    int i;
+    int i = 0;
 
     switch (caller)
     {

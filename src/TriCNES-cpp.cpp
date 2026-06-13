@@ -94,9 +94,9 @@ static void SDLCALL audio(void* userdata, SDL_AudioStream* stream, int len, int 
             SDL_stack_free(data);
         }
     }
-};
+}
 
-void keyDown(SDL_Keycode key)
+static void keyDown(SDL_Keycode key)
 {
 
     if (mod_ctrl)
@@ -143,7 +143,7 @@ void keyDown(SDL_Keycode key)
     if (emulator.TAS_ReadingTAS) return;
 
     switch (key)
-    {;
+    {
     case SDLK_X:      emulator.ControllerPort1 |= 0x80; break;
     case SDLK_Z:      emulator.ControllerPort1 |= 0x40; break;
     case SDLK_RSHIFT: emulator.ControllerPort1 |= 0x20; break;
@@ -155,7 +155,7 @@ void keyDown(SDL_Keycode key)
     }
 }
 
-void keyUp(SDL_Keycode key)
+static void keyUp(SDL_Keycode key)
 {
     switch (key)
     {
