@@ -4,7 +4,6 @@
 #define WIN32_LEAN_AND_MEAN
 #define NOMINMAX
 #include <Windows.h>
-#include <dwmapi.h>
 
 static HWND hWnd;
 static HMENU hMenuBar;
@@ -20,7 +19,16 @@ struct MenuCallback
 	void (*callback)(MENU_ID caller);
 };
 
+struct DropdownSelect
+{
+	MENU parent;
+	MENU_ID* menus;
+	int menuCount;
+	void (*callback)(MENU_ID caller);
+};
+
 std::vector<MenuCallback> callbacks;
+std::vector<DropdownSelect> dropdowns;
 
 LRESULT CALLBACK WndProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam, void* userdata) {
 	if (uMsg == WM_COMMAND) {
@@ -30,7 +38,33 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam, voi
 		{
 			if (callback.id == id)
 			{
-				callback.callback(callback.id);
+				callback.callback(id);
+				break;
+			}
+		}
+
+		for (DropdownSelect dropdown : dropdowns)
+		{
+			bool found = false;
+
+			for (int i = 0; i < dropdown.menuCount; i++)
+			{
+				if (dropdown.menus[i] == id)
+				{
+					found = true;
+					break;
+				}
+			}
+
+			if (found)
+			{
+				for (int i = 0; i < dropdown.menuCount; i++)
+				{
+					CheckMenuItem(dropdown.parent, dropdown.menus[i], MF_BYCOMMAND | ((dropdown.menus[i] == id) ? MF_CHECKED : MF_UNCHECKED));
+				}
+
+				dropdown.callback(id);
+
 				break;
 			}
 		}
@@ -60,6 +94,18 @@ void InitGUI(SDL_Window* win)
 	SetWindowLongPtr(hWnd, GWLP_WNDPROC, (LONG_PTR)WndProc);
 }
 
+int GetMenuBarOffset()
+{
+	MENUBARINFO mbi = { 0 };
+	mbi.cbSize = sizeof(MENUBARINFO);
+
+	if (GetMenuBarInfo(hWnd, OBJID_MENU, 0, &mbi)) {
+		return mbi.rcBar.bottom - mbi.rcBar.top;
+	}
+
+	return 0;
+}
+
 MENU AddMenu(const char* label)
 {
 	HMENU hMenu = CreatePopupMenu();
@@ -73,6 +119,11 @@ void AddMenuItem(MENU menu, MENU_ID id, const char* label, void (*handler)(MENU_
 	AppendMenuA(menu, MF_STRING, id, label);
 
 	callbacks.push_back({ id, handler });
+}
+
+void AddMenuItem(MENU menu, MENU_ID id, const char* label)
+{
+	AppendMenuA(menu, MF_STRING, id, label);
 }
 
 MENU AddSubMenu(MENU menu, const char* label)
@@ -94,6 +145,62 @@ void Alert(const char* title, const char* message, void (*handler)(MENU_ID calle
 	MessageBoxA(hWnd, message, title, MB_OK);
 
 	handler(NULL);
+}
+
+bool GetMenuItemChecked(MENU menu, MENU_ID id)
+{
+	UINT state = GetMenuState(menu, id, MF_BYCOMMAND);
+
+	return !!(state & MF_CHECKED);
+}
+
+void SetMenuItemChecked(MENU menu, MENU_ID id, bool checked)
+{
+	CheckMenuItem(menu, id, MF_BYCOMMAND | (checked ? MF_CHECKED : MF_UNCHECKED));
+}
+
+void CreateDropdownSelectHandler(DropdownSelect dropdown)
+{
+	dropdowns.push_back(dropdown);
+}
+
+MENU_ID GetDropdownSelected(DropdownSelect dropdown)
+{
+	for (int i = 0; i < dropdown.menuCount; i++)
+	{
+		if (GetMenuItemChecked(dropdown.parent, dropdown.menus[i]))
+			return dropdown.menus[i];
+	}
+
+	return NULL;
+}
+
+void SetDropdownSelected(DropdownSelect dropdown, MENU_ID id)
+{
+	for (int i = 0; i < dropdown.menuCount; i++)
+	{
+		SetMenuItemChecked(dropdown.parent, dropdown.menus[i], dropdown.menus[i] == id);
+	}
+}
+
+
+int GetDropdownSelectedIndex(DropdownSelect dropdown)
+{
+	for (int i = 0; i < dropdown.menuCount; i++)
+	{
+		if (GetMenuItemChecked(dropdown.parent, dropdown.menus[i]))
+			return i;
+	}
+
+	return -1;
+}
+
+void SetDropdownSelectedIndex(DropdownSelect dropdown, MENU_ID idx)
+{
+	for (int i = 0; i < dropdown.menuCount; i++)
+	{
+		SetMenuItemChecked(dropdown.parent, dropdown.menus[i], i == idx);
+	}
 }
 
 #else

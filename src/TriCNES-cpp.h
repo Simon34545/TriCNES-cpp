@@ -13,4 +13,10 @@
 #include "./TriCNES/Math.h"
 #include "./TriCNES/mappers.h"
 
-static void disk();
+#include "tas.h"
+
+MENU_CALLBACK(disk);
+
+void sync_keys();
+
+MENU_CALLBACK(dummy_handler) {};
