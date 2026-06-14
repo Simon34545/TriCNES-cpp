@@ -283,7 +283,6 @@ static void SDLCALL tasCallback(void* userdata, const char* const* file, int fil
     SetMenuItemChecked(tas, BTN_FRAME0, false);
 
 
-    // bizhawk TASes will need to set CPU clock = 8
     // FCEUX tases will enable the FCEUX frame 0 timing
 
     tasLength = 0;
@@ -292,6 +291,11 @@ static void SDLCALL tasCallback(void* userdata, const char* const* file, int fil
     {
     case BTN_TASR08:
         tasLength = loadR08(file[0], tasInputs, tasResets);
+        break;
+    case BTN_TASBK2:
+        tasLength = loadBK2(file[0], tasInputs, tasResets);
+        SetDropdownSelected(tasCPUSelect, BTN_TASCPU8);
+        SetDropdownSelected(tasRAMSelect, BTN_TASRAM1);
         break;
     default: return;
     }
@@ -311,6 +315,7 @@ MENU_CALLBACK(loadTAS)
     switch (caller)
     {
     case BTN_TASR08: filter = { "Replay Device TAS files", "r08;bin" }; break;
+    case BTN_TASBK2: filter = { "Bizhawk TAS files", "bk2;tasproj;zip" }; break;
     default: return;
     }
 
@@ -416,6 +421,7 @@ void InitMenuBar()
 
     MENU tasLoad = AddSubMenu(tas, "Load TAS");
     AddMenuItem(tasLoad, BTN_TASR08, "Replay Device\t*.r08", loadTAS);
+    AddMenuItem(tasLoad, BTN_TASBK2, "Bizhawk\t*.bk2;*.tasproj", loadTAS);
 
     AddMenuItem(tas, BTN_FRAME0, "FCEUX Frame 0 Timing", frame0);
 
