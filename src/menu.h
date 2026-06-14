@@ -214,14 +214,12 @@ static void SDLCALL tasCallback(void* userdata, const char* const* file, int fil
 
     SetMenuItemChecked(tas, BTN_FRAME0, false);
 
-
-    // FCEUX tases will enable the FCEUX frame 0 timing
-
     tasLength = 0;
 
     switch (tas_caller)
     {
     case BTN_TASR08: tasLength = loadR08(file[0], tasInputs, tasResets); break;
+    case BTN_TASFMV: tasLength = loadFMV(file[0], tasInputs, tasResets); break;
     case BTN_TASFM2: tasLength = loadFM2(file[0], tasInputs, tasResets); break;
     case BTN_TASBK2: tasLength = loadBK2(file[0], tasInputs, tasResets); break;
     default: return;
@@ -241,9 +239,10 @@ MENU_CALLBACK(loadTAS)
 
     switch (caller)
     {
-    case BTN_TASR08: filter = { "Replay Device TAS files", "r08;bin" }; break;
+    case BTN_TASR08: filter = { "Replay Device TAS files", "r08" }; break;
+    case BTN_TASFMV: filter = { "Famtasia TAS files", "fmv" }; break;
     case BTN_TASFM2: filter = { "FCEUX TAS files", "fm2;fm3" }; break;
-    case BTN_TASBK2: filter = { "Bizhawk TAS files", "bk2;tasproj;zip" }; break;
+    case BTN_TASBK2: filter = { "Bizhawk TAS files", "bk2;tasproj" }; break;
     default: return;
     }
 
@@ -349,6 +348,7 @@ void InitMenuBar()
 
     MENU tasLoad = AddSubMenu(tas, "Load TAS");
     AddMenuItem(tasLoad, BTN_TASR08, "Replay Device\t*.r08", loadTAS);
+    AddMenuItem(tasLoad, BTN_TASFMV, "Famtasia\t*.fmv", loadTAS);
     AddMenuItem(tasLoad, BTN_TASFM2, "FCEUX\t*.fm2;*.fm3", loadTAS);
     AddMenuItem(tasLoad, BTN_TASBK2, "Bizhawk\t*.bk2;*.tasproj", loadTAS);
 
@@ -437,8 +437,5 @@ void InitMenuBar()
         .3ct (TriCNES)
         .3c2 (TriCNES) (dev build)
         .3c3 (TriCNES TAS Timeline) (dev build)
-
-        .fmv (Famtasia)
-
     */
 }

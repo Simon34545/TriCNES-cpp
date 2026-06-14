@@ -174,12 +174,6 @@ int loadFM2(std::string filepath, ushort*& inputs, bool*& resets)
         }
     }
 
-    printf("port0: %i\n", port0 ? 1 : 0);
-    printf("port1: %i\n", port1 ? 1 : 0);
-    printf("binary: %i\n", binary ? 1 : 0);
-    printf("start of input log @%i\n", offset);
-    printf("length of input log: %i\n", length);
-
     int len = 0;
 
     auto Flip = [](byte b) -> byte
@@ -282,6 +276,68 @@ int loadFM2(std::string filepath, ushort*& inputs, bool*& resets)
     }
 
     SetMenuItemChecked(tas, BTN_FRAME0, true);
+
+    return len;
+}
+
+int loadFMV(std::string filepath, ushort*& inputs, bool*& resets)
+{
+    std::ifstream file(filepath, std::ios::binary | std::ios::ate);
+    if (!file.is_open()) {
+        std::cerr << "Error opening file!" << std::endl;
+    }
+    std::streamsize size = file.tellg();
+    file.seekg(0, std::ios::beg);
+
+    char* TAS = new char[size];
+    byte* bTAS = (byte*)TAS;
+
+    if (size > 8 && file.read(TAS, size)) {
+        std::cout << "Loaded TAS: " << filepath << std::endl;
+    }
+    else {
+        std::cerr << "Error reading file!" << std::endl;
+        return 0;
+    }
+
+    file.close();
+
+    std::vector<ushort> vInputs;
+    std::vector<bool> vResets;
+
+    // Famtasia: SsABDULR
+    // TriCNES:  ABsSUDLR
+
+    auto Fix = [](byte b) -> byte
+        {
+            b = (b & 0b11110011) | ((b & 0b00001000) >> 1) | ((b & 0b00000100) << 1);
+            b = (b & 0b01101111) | ((b & 0b10000000) >> 3) | ((b & 0b00010000) << 3);
+            b = (b & 0b10011111) | ((b & 0b01000000) >> 1) | ((b & 0b00100000) << 1);
+            b = (b & 0b00111111) | ((b & 0b10000000) >> 1) | ((b & 0b01000000) << 1);
+            return b;
+        };
+
+    bool port2 = (bTAS[5] & 0b00010000) != 0;
+    int len = 0;
+
+    int i = 0x90;
+
+    while (i < size)
+    {
+        vInputs.push_back(((port2 ? Fix(bTAS[i++]) : 0x00) << 8) | Fix(bTAS[i++]));
+        vResets.push_back(false);
+
+        len++;
+    }
+
+    inputs = new ushort[len];
+    resets = new bool[len];
+
+    for (int i = 0; i < len; i++)
+    {
+        inputs[i] = vInputs[i];
+        resets[i] = vResets[i];
+    }
 
     return len;
 }
