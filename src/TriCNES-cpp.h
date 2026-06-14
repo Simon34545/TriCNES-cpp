@@ -68,5 +68,13 @@ static int total = 0;
 static void render();
 void sync_keys();
 
+#include "ids.h"
+
+static HMENU tas;
+static DropdownSelect tasCPUSelect;
+static DropdownSelect tasPPUSelect;
+static DropdownSelect tasFilterSelect;
+static DropdownSelect tasRAMSelect;
+
 #include "tas.h"
 #include "menu.h"

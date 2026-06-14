@@ -112,6 +112,176 @@ int loadBK2(std::string filepath, ushort*& inputs, bool*& resets)
         inputs[i] = vInputs[i];
         resets[i] = vResets[i];
     }
+
+    SetDropdownSelected(tasCPUSelect, BTN_TASCPU8);
+    SetDropdownSelected(tasRAMSelect, BTN_TASRAM1);
     
+    return len;
+}
+
+int loadFM2(std::string filepath, ushort*& inputs, bool*& resets)
+{
+    std::ifstream file(filepath, std::ios::binary | std::ios::ate);
+    if (!file.is_open()) {
+        std::cerr << "Error opening file!" << std::endl;
+    }
+    std::streamsize size = file.tellg();
+    file.seekg(0, std::ios::beg);
+
+    char* TAS = new char[size];
+    byte* bTAS = (byte*)TAS;
+
+    if (size > 8 && file.read(TAS, size)) {
+        std::cout << "Loaded TAS: " << filepath << std::endl;
+    }
+    else {
+        std::cerr << "Error reading file!" << std::endl;
+        return 0;
+    }
+
+    file.close();
+
+    std::vector<ushort> vInputs;
+    std::vector<bool> vResets;
+
+    bool port0 = false;
+    bool port1 = false;
+    bool binary = false;
+
+    int length = 0;
+    int offset = 0;
+
+    std::stringstream ss(TAS);
+    std::string line;
+
+    while (std::getline(ss, line, '\n'))
+    {
+        if (line.at(0) == '|') break;
+
+        offset += line.size() + 1;
+
+        size_t space = line.find_first_of(" ");
+
+        if (line.find("port0") == 0 && line.at(space + 1) == '1') port0 = true;
+        if (line.find("port1") == 0 && line.at(space + 1) == '1') port1 = true;
+        if (line.find("binary") == 0 && line.at(space + 1) == '1') binary = true;
+
+        if (line.find("length") == 0)
+        {
+            std::string len = line.substr(space + 1, line.size());
+
+            length = stoi(len);
+        }
+    }
+
+    printf("port0: %i\n", port0 ? 1 : 0);
+    printf("port1: %i\n", port1 ? 1 : 0);
+    printf("binary: %i\n", binary ? 1 : 0);
+    printf("start of input log @%i\n", offset);
+    printf("length of input log: %i\n", length);
+
+    int len = 0;
+
+    auto Flip = [](byte b) -> byte
+        {
+            b = (byte)(((b & 0xF0) >> 4) | ((b & 0xF) << 4));
+            b = (byte)(((b & 0xCC) >> 2) | ((b & 0x33) << 2));
+            b = (byte)(((b & 0xAA) >> 1) | ((b & 0x55) << 1));
+            return b;
+        };
+
+    if (binary)
+    {
+        offset++;
+
+        int stride = 1;
+
+        if (port0) stride++;
+        if (port1) stride++;
+
+        int end = (length == 0) ? size : (offset + length * stride);
+
+        int i = offset;
+
+        while (i < end)
+        {
+            byte cmd = bTAS[i++];
+            byte pt0 = port0 ? bTAS[i++] : 0x00;
+            byte pt1 = port1 ? bTAS[i++] : 0x00;
+
+            vInputs.push_back((Flip(pt1) << 8) | Flip(pt0));
+            vResets.push_back((cmd & 1) == 1);
+
+            len++;
+        }
+    }
+    else
+    {
+        ss = std::stringstream(&TAS[offset]);
+
+        while (std::getline(ss, line, '\n'))
+        {
+            if (line.at(0) != '|') continue;
+
+            std::stringstream ss2(line);
+            std::string token;
+            int i = 0;
+
+            ushort input = 0;
+            bool reset = false;
+
+            while (std::getline(ss2, token, '|'))
+            {
+                if (i > 1)
+                {
+                    ushort b = 0;
+
+                    for (int c = 0; c < token.size(); c++)
+                    {
+                        switch (token.at(c))
+                        {
+                        case 'A': b |= 0x80; break;
+                        case 'B': b |= 0x40; break;
+                        case 'S': b |= 0x20; break;
+                        case 'T': b |= 0x10; break;
+                        case 'U': b |= 0x08; break;
+                        case 'D': b |= 0x04; break;
+                        case 'L': b |= 0x02; break;
+                        case 'R': b |= 0x01; break;
+                        default:  b |= 0x00; break;
+                        }
+                    }
+
+                    if (i == 3) b <<= 8;
+                    input |= b;
+                }
+                else if (i == 1)
+                {
+                    int cmd = stoi(token);
+
+                    reset = (cmd & 1) == 1;
+                }
+
+                i++;
+            }
+
+            vInputs.push_back(input);
+            vResets.push_back(reset);
+
+            len++;
+        }
+    }
+
+    inputs = new ushort[len];
+    resets = new bool[len];
+
+    for (int i = 0; i < len; i++)
+    {
+        inputs[i] = vInputs[i];
+        resets[i] = vResets[i];
+    }
+
+    SetMenuItemChecked(tas, BTN_FRAME0, true);
+
     return len;
 }

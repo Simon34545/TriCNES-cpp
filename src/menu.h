@@ -1,74 +1,6 @@
 #pragma once
 
-#define BTN_POWER 1000
-#define BTN_RESET 1001
-#define BTN_CART 1002
-#define BTN_RMCART 1003
-#define BTN_BIOS 1004
-#define BTN_DISK 1005
-#define BTN_PAUSE 1006
-
-#define BTN_SAVE0 1010
-#define BTN_SAVE1 1011
-#define BTN_SAVE2 1012
-#define BTN_SAVE3 1013
-#define BTN_SAVE4 1014
-#define BTN_SAVE5 1015
-#define BTN_SAVE6 1016
-#define BTN_SAVE7 1017
-
-#define BTN_LOAD0 1020
-#define BTN_LOAD1 1021
-#define BTN_LOAD2 1022
-#define BTN_LOAD3 1023
-#define BTN_LOAD4 1024
-#define BTN_LOAD5 1025
-#define BTN_LOAD6 1026
-#define BTN_LOAD7 1027
-
-#define BTN_FRAME0 2000
-#define BTN_TASSTART 2001
-
-#define BTN_TAS3CT 2010
-#define BTN_TAS3C2 2011
-#define BTN_TAS3C3 2012
-#define BTN_TASR08 2013
-#define BTN_TASFMV 2014
-#define BTN_TASFM2 2015
-#define BTN_TASBK2 2016
-
-#define BTN_TASCPU0 2020
-#define BTN_TASCPU1 2021
-#define BTN_TASCPU2 2022
-#define BTN_TASCPU3 2023
-#define BTN_TASCPU4 2024
-#define BTN_TASCPU5 2025
-#define BTN_TASCPU6 2026
-#define BTN_TASCPU7 2027
-#define BTN_TASCPU8 2028
-#define BTN_TASCPU9 2029
-#define BTN_TASCPU10 2030
-#define BTN_TASCPU11 2031
-
-#define BTN_TASPPU0 2040
-#define BTN_TASPPU1 2041
-#define BTN_TASPPU2 2042
-#define BTN_TASPPU3 2043
-
-#define BTN_TASLATCH 2050
-#define BTN_TASCLOCK 2051
-
-#define BTN_TASRAM0 2060
-#define BTN_TASRAM1 2061
-#define BTN_TASRAM2 2062
-
 static HMENU console;
-static HMENU tas;
-
-static DropdownSelect tasCPUSelect;
-static DropdownSelect tasPPUSelect;
-static DropdownSelect tasFilterSelect;
-static DropdownSelect tasRAMSelect;
 
 MENU_CALLBACK(disk);
 MENU_CALLBACK(dummy_handler) {};
@@ -289,14 +221,9 @@ static void SDLCALL tasCallback(void* userdata, const char* const* file, int fil
 
     switch (tas_caller)
     {
-    case BTN_TASR08:
-        tasLength = loadR08(file[0], tasInputs, tasResets);
-        break;
-    case BTN_TASBK2:
-        tasLength = loadBK2(file[0], tasInputs, tasResets);
-        SetDropdownSelected(tasCPUSelect, BTN_TASCPU8);
-        SetDropdownSelected(tasRAMSelect, BTN_TASRAM1);
-        break;
+    case BTN_TASR08: tasLength = loadR08(file[0], tasInputs, tasResets); break;
+    case BTN_TASFM2: tasLength = loadFM2(file[0], tasInputs, tasResets); break;
+    case BTN_TASBK2: tasLength = loadBK2(file[0], tasInputs, tasResets); break;
     default: return;
     }
 
@@ -315,6 +242,7 @@ MENU_CALLBACK(loadTAS)
     switch (caller)
     {
     case BTN_TASR08: filter = { "Replay Device TAS files", "r08;bin" }; break;
+    case BTN_TASFM2: filter = { "FCEUX TAS files", "fm2;fm3" }; break;
     case BTN_TASBK2: filter = { "Bizhawk TAS files", "bk2;tasproj;zip" }; break;
     default: return;
     }
@@ -421,6 +349,7 @@ void InitMenuBar()
 
     MENU tasLoad = AddSubMenu(tas, "Load TAS");
     AddMenuItem(tasLoad, BTN_TASR08, "Replay Device\t*.r08", loadTAS);
+    AddMenuItem(tasLoad, BTN_TASFM2, "FCEUX\t*.fm2;*.fm3", loadTAS);
     AddMenuItem(tasLoad, BTN_TASBK2, "Bizhawk\t*.bk2;*.tasproj", loadTAS);
 
     AddMenuItem(tas, BTN_FRAME0, "FCEUX Frame 0 Timing", frame0);
@@ -510,9 +439,6 @@ void InitMenuBar()
         .3c3 (TriCNES TAS Timeline) (dev build)
 
         .fmv (Famtasia)
-        .fm2 (FCEUX)
-        .fm3 (FCEUX's TAS Editor)
-        .bk2 (Bizhawk)
-        .tasproj (Bizhawk's TAStudio)
+
     */
 }
