@@ -46,7 +46,7 @@ static void fillBuffer()
                 {
                     if (TriCTASRunning)
                     {
-                        if (TriCTASCycles++ == TriCTASSwaps[TriCTASIndex])
+                        if (++TriCTASCycles == TriCTASSwaps[TriCTASIndex])
                         {
                             emulator.Cart = &(TriCTASCarts[TriCTASIndices[TriCTASIndex]]);
                             if (++TriCTASIndex == TriCTASSwaps.size()) TriCTASRunning = false;

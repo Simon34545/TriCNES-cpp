@@ -424,7 +424,7 @@ int load3CT(std::string filepath)
             std::string cycle = line.substr(0, space);
             std::string index = line.substr(space + 1, line.size());
 
-            TriCTASSwaps.push_back(stoi(cycle) * 12);
+            TriCTASSwaps.push_back(stoi(cycle));
             TriCTASIndices.push_back(stoi(index));
         }
 
