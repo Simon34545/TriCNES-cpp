@@ -8,6 +8,7 @@ namespace TriCNES
             std::ifstream file(filepath, std::ios::binary | std::ios::ate); // Reads the file from the provided file path, and stores every byte into an array.
             if (!file.is_open()) {
                 std::cerr << "Error opening file!" << std::endl;
+                return;
             }
             std::streamsize size = file.tellg();
             file.seekg(0, std::ios::beg);
@@ -84,6 +85,7 @@ namespace TriCNES
             std::ifstream file(FDSBIOS_filepath, std::ios::binary | std::ios::ate); // Reads the file from the provided file path, and stores every byte into an array.
             if (!file.is_open()) {
                 std::cerr << "Error opening BIOS ROM file! " << FDSBIOS_filepath << std::endl;
+                return;
             }
             std::streamsize size = file.tellg();
             file.seekg(0, std::ios::beg);
@@ -321,6 +323,7 @@ namespace TriCNES
             std::ifstream file(filepath, std::ios::binary | std::ios::ate); // Reads the file from the provided file path, and stores every byte into an array.
             if (!file.is_open()) {
                 std::cerr << "Error opening file!" << std::endl;
+                return;
             }
             std::streamsize size = file.tellg();
             file.seekg(0, std::ios::beg);

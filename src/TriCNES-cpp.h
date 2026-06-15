@@ -76,5 +76,8 @@ static DropdownSelect tasPPUSelect;
 static DropdownSelect tasFilterSelect;
 static DropdownSelect tasRAMSelect;
 
+MENU_CALLBACK(disk);
+MENU_CALLBACK(dummy_handler) {};
+
 #include "tas.h"
 #include "menu.h"

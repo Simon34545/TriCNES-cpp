@@ -2,9 +2,6 @@
 
 static HMENU console;
 
-MENU_CALLBACK(disk);
-MENU_CALLBACK(dummy_handler) {};
-
 MENU_CALLBACK(power)
 {
 
@@ -218,6 +215,9 @@ static void SDLCALL tasCallback(void* userdata, const char* const* file, int fil
 
     switch (tas_caller)
     {
+    case BTN_TAS3CT: tasLength = load3CT(file[0]); break;
+    case BTN_TAS3C2: tasLength = load3C2(file[0], tasInputs, tasResets, false); break;
+    case BTN_TAS3C3: tasLength = load3C2(file[0], tasInputs, tasResets, true); break;
     case BTN_TASR08: tasLength = loadR08(file[0], tasInputs, tasResets); break;
     case BTN_TASFMV: tasLength = loadFMV(file[0], tasInputs, tasResets); break;
     case BTN_TASFM2: tasLength = loadFM2(file[0], tasInputs, tasResets); break;
@@ -239,6 +239,9 @@ MENU_CALLBACK(loadTAS)
 
     switch (caller)
     {
+    case BTN_TAS3CT: filter = { "TriCNES Cartswap TAS files", "3ct" }; break;
+    case BTN_TAS3C2: filter = { "TriCNES TAS files", "3c2" }; break;
+    case BTN_TAS3C3: filter = { "TriCNES TAS Timeline files", "3c3" }; break;
     case BTN_TASR08: filter = { "Replay Device TAS files", "r08" }; break;
     case BTN_TASFMV: filter = { "Famtasia TAS files", "fmv" }; break;
     case BTN_TASFM2: filter = { "FCEUX TAS files", "fm2;fm3" }; break;
@@ -259,15 +262,40 @@ MENU_CALLBACK(startTAS)
 
     SDL_LockAudioStream(stream);
 
-    powered = false;
-    power(NULL);
+    if (caller == BTN_TASSTARTR)
+    {
+        if (!powered) return Alert("Error", "Please power on the emulator first.", dummy_handler);
 
-    emulator.TAS_ReadingTAS = true;
+        reset(NULL);
+    }
+    else
+    {
 
-    emulator.TAS_InputLogLength = tasLength;
-    emulator.TAS_ResetLogLength = tasLength;
-    emulator.TAS_InputLog = tasInputs;
-    emulator.TAS_ResetLog = tasResets;
+        powered = false;
+        power(NULL);
+    }
+
+    if (tas_caller == BTN_TAS3CT)
+    {
+        TriCTASCycles = 0;
+        TriCTASIndex = 0;
+        TriCTASRunning = true;
+
+        for (int i = 0; i < TriCTASCarts.size(); i++)
+        {
+            TriCTASCarts[i].Emu = &emulator;
+            TriCTASCarts[i].MapperChip->Cart = &(TriCTASCarts[i]);
+        }
+    }
+    else
+    {
+        emulator.TAS_ReadingTAS = true;
+
+        emulator.TAS_InputLogLength = tasLength;
+        emulator.TAS_ResetLogLength = tasLength;
+        emulator.TAS_InputLog = tasInputs;
+        emulator.TAS_ResetLog = tasResets;
+    }
 
     emulator.ClockFiltering = GetDropdownSelected(tasFilterSelect) == BTN_TASCLOCK;
 
@@ -347,6 +375,9 @@ void InitMenuBar()
     tas = AddMenu("TAS");
 
     MENU tasLoad = AddSubMenu(tas, "Load TAS");
+    AddMenuItem(tasLoad, BTN_TAS3CT, "TriCNES Intercycle Cartridge Swapping TAS\t*.3ct", loadTAS);
+    AddMenuItem(tasLoad, BTN_TAS3C2, "TriCNES TAS (beta)\t*.3c2", loadTAS);
+    AddMenuItem(tasLoad, BTN_TAS3C3, "TriCNES TAS Timeline (beta)\t*.3c3", loadTAS);
     AddMenuItem(tasLoad, BTN_TASR08, "Replay Device\t*.r08", loadTAS);
     AddMenuItem(tasLoad, BTN_TASFMV, "Famtasia\t*.fmv", loadTAS);
     AddMenuItem(tasLoad, BTN_TASFM2, "FCEUX\t*.fm2;*.fm3", loadTAS);
@@ -430,12 +461,8 @@ void InitMenuBar()
 
     CreateDropdownSelectHandler(tasRAMSelect);
 
-    AddMenuItem(tas, BTN_TASSTART, "Start TAS", startTAS);
 
-    /*
-    todo:
-        .3ct (TriCNES)
-        .3c2 (TriCNES) (dev build)
-        .3c3 (TriCNES TAS Timeline) (dev build)
-    */
+    MENU tasStart = AddSubMenu(tas, "Start TAS");
+    AddMenuItem(tasStart, BTN_TASSTARTP, "From POWER", startTAS);
+    AddMenuItem(tasStart, BTN_TASSTARTR, "From RESET", startTAS);
 }
