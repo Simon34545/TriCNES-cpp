@@ -5,9 +5,6 @@
 #define NOMINMAX
 #include <Windows.h>
 
-static HWND hWnd;
-static HMENU hMenuBar;
-
 #define MENU_ID UINT_PTR
 #define MENU HMENU
 
@@ -74,42 +71,34 @@ LRESULT CALLBACK WndProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam, voi
 	return CallWindowProc(originalProc, hwnd, uMsg, wParam, lParam);
 }
 
-void InitGUI(SDL_Window* win)
+MENU CreateMenuBar(SDL_Window* win)
 {
 	SDL_PropertiesID props = SDL_GetWindowProperties(win);
 
-	hWnd = (HWND)SDL_GetPointerProperty(props, SDL_PROP_WINDOW_WIN32_HWND_POINTER, NULL);
+	HWND hWnd = (HWND)SDL_GetPointerProperty(props, SDL_PROP_WINDOW_WIN32_HWND_POINTER, NULL);
 
 	if (!hWnd)
 	{
-		std::cerr << "Failed to initialize Windows GUI." << std::endl;
-		return;
+		std::cerr << "Failed to initialize menu bar." << std::endl;
+		return NULL;
 	}
 
-	hMenuBar = CreateMenu();
+	MENU hMenuBar = CreateMenu();
 
 	SetMenu(hWnd, hMenuBar);
 
 	SetWindowLongPtr(hWnd, GWLP_USERDATA, GetWindowLongPtr(hWnd, GWLP_WNDPROC));
 	SetWindowLongPtr(hWnd, GWLP_WNDPROC, (LONG_PTR)WndProc);
+
+	DrawMenuBar(hWnd);
+
+	return hMenuBar;
 }
 
-int GetMenuBarOffset()
-{
-	MENUBARINFO mbi = { 0 };
-	mbi.cbSize = sizeof(MENUBARINFO);
-
-	if (GetMenuBarInfo(hWnd, OBJID_MENU, 0, &mbi)) {
-		return mbi.rcBar.bottom - mbi.rcBar.top;
-	}
-
-	return 0;
-}
-
-MENU AddMenu(const char* label)
+MENU AddMenu(MENU menuBar, const char* label)
 {
 	HMENU hMenu = CreatePopupMenu();
-	AppendMenuA(hMenuBar, MF_POPUP, (UINT_PTR)hMenu, label);
+	AppendMenuA(menuBar, MF_POPUP, (UINT_PTR)hMenu, label);
 
 	return hMenu;
 }
@@ -134,14 +123,11 @@ MENU AddSubMenu(MENU menu, const char* label)
 	return hMenu;
 }
 
-void RefreshMenuBar()
+void Alert(SDL_Window* win, const char* title, const char* message, void (*handler)(MENU_ID caller))
 {
-	DrawMenuBar(hWnd);
-}
+	SDL_PropertiesID props = SDL_GetWindowProperties(win);
+	HWND hWnd = (HWND)SDL_GetPointerProperty(props, SDL_PROP_WINDOW_WIN32_HWND_POINTER, NULL);
 
-
-void Alert(const char* title, const char* message, void (*handler)(MENU_ID caller))
-{
 	MessageBoxA(hWnd, message, title, MB_OK);
 
 	handler(NULL);

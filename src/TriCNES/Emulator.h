@@ -11,7 +11,7 @@
 #include "Math.h"
 
 #define SetPixel(buffer, width, x, y, color) \
-    buffer[((y) * width) + x] = color;
+    buffer[((y) * (width)) + (x)] = color;
 
 #define ARGB(r, g, b) \
     (0xFF000000 | ((r) << 16) | ((g) << 8) | (b))

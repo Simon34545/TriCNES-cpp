@@ -411,7 +411,7 @@ int load3CT(std::string filepath)
 
             if (cart.Name.empty())
             {
-                Alert("Error", ("Could not load ROM:\n" + filepath).c_str(), dummy_handler);
+                Alert(window, "Error", ("Could not load ROM:\n" + filepath).c_str(), dummy_handler);
                 return 0;
             }
 

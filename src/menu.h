@@ -1,6 +1,6 @@
 #pragma once
 
-static HMENU console;
+#include "ntviewer.h"
 
 MENU_CALLBACK(power)
 {
@@ -17,10 +17,16 @@ MENU_CALLBACK(power)
         cartridge.MapperChip->Cart = &cartridge;
         if (cartridge.FDS != nullptr) cartridge.FDS->Cart = &cartridge;
         //if (cartridge.FDS != nullptr) cartridge.FDS->CurrentState = TriCNES::DiskDrive::RamAdapterState::RESET;
+
+        emulator.PPUClock = GetDropdownSelectedIndex(settingsPPUSelect);
+        syncSettings(BTN_POWER);
     }
     else
     {
-        for (int i = 0; i < 256 * 240; i++) emulator.Screen[i] = 0xFF000000;
+        for (int i = 0; i < 256 * 1 * 240; i++) emulator.Screen[i] = 0xFF000000;
+        for (int i = 0; i < 341 * 1 * 262; i++) emulator.BorderedScreen[i] = 0xFF000000;
+        for (int i = 0; i < 256 * 8 * 240; i++) emulator.NTSCScreen[i] = 0xFF000000;
+        for (int i = 0; i < 341 * 8 * 262; i++) emulator.BorderedNTSCScreen[i] = 0xFF000000;
         render();
     }
 
@@ -42,14 +48,11 @@ static void SDLCALL cartCallback(void* userdata, const char* const* file, int fi
     SDL_LockAudioStream(stream);
 
     cartridge = TriCNES::Cartridge(file[0]);
+    cartridge.Emu = &emulator;
+    cartridge.MapperChip->Cart = &cartridge;
+    emulator.Cart = &cartridge;
 
-    if (powered)
-    {
-        emulator.Cart = &cartridge;
-        cartridge.Emu = &emulator;
-        cartridge.MapperChip->Cart = &cartridge;
-    }
-    else
+    if (!powered)
     {
         power(NULL);
     }
@@ -88,11 +91,11 @@ static void SDLCALL biosCallback(void* userdata, const char* const* file, int fi
     {
         PendingDiskSelect = false;
 
-        Alert("Success", "BIOS path has been set.", disk);
+        Alert(window, "Success", "BIOS path has been set.", disk);
     }
     else
     {
-        Alert("Success", "BIOS path has been set.", dummy_handler);
+        Alert(window, "Success", "BIOS path has been set.", dummy_handler);
     }
 }
 
@@ -141,7 +144,7 @@ MENU_CALLBACK(disk)
     if (BIOS.empty())
     {
         PendingDiskSelect = true;
-        Alert("Missing FDS BIOS", "Please select an FDS BIOS ROM.", bios);
+        Alert(window, "Missing FDS BIOS", "Please select an FDS BIOS ROM.", bios);
         return;
     }
 
@@ -225,12 +228,12 @@ static void SDLCALL tasCallback(void* userdata, const char* const* file, int fil
     default: return;
     }
 
-    if (tasLength == 0) return Alert("Error", "Something went wrong while loading the TAS.", dummy_handler);
+    if (tasLength == 0) return Alert(window, "Error", "Something went wrong while loading the TAS.", dummy_handler);
 
     char message[200];
     snprintf(message, sizeof(message), "Loaded %i TAS inputs.\nPlease confirm settings and then press Start TAS.", tasLength);
 
-    Alert("Success", message, dummy_handler);
+    Alert(window, "Success", message, dummy_handler);
 }
 
 MENU_CALLBACK(loadTAS)
@@ -258,13 +261,13 @@ MENU_CALLBACK(loadTAS)
 
 MENU_CALLBACK(startTAS)
 {
-    if (tasLength == 0) return Alert("Error", "Please load a TAS first!", loadTAS);
+    if (tasLength == 0) return Alert(window, "Error", "Please load a TAS first!", loadTAS);
 
     SDL_LockAudioStream(stream);
 
     if (caller == BTN_TASSTARTR)
     {
-        if (!powered) return Alert("Error", "Please power on the emulator first.", dummy_handler);
+        if (!powered) return Alert(window, "Error", "Please power on the emulator first.", dummy_handler);
 
         reset(NULL);
     }
@@ -337,12 +340,79 @@ MENU_CALLBACK(startTAS)
     SDL_UnlockAudioStream(stream);
 }
 
+MENU_CALLBACK(syncSettings)
+{
+    SDL_LockAudioStream(stream);
+
+    emulator.PPU_ShowRawNTSCSignal = GetMenuItemChecked(settings, BTN_NTSCRAW);
+
+    speed = speeds[GetDropdownSelectedIndex(settingsSpeedSelect)];
+
+    int mode = GetDropdownSelectedIndex(settingsModeSelect);
+
+    emulator.PPU_DecodeSignal = mode > 1;
+    emulator.PPU_ShowScreenBorders = mode == 1 || mode == 3;
+
+    int width = emulator.PPU_ShowScreenBorders ? 341 : 256;
+    int height = emulator.PPU_ShowScreenBorders ? 262 : 240;
+
+    int scale = GetDropdownSelectedIndex(settingsScaleSelect);
+
+    if (scale == 0)
+    {
+        width *= emulator.PPU_DecodeSignal ? 1 : 8;
+        height *= 7;
+    }
+    else
+    {
+        width *= scale;
+        height *= scale;
+    }
+
+    if (caller != BTN_POWER) SDL_SetWindowSize(window, width, height);
+
+    switch (mode)
+    {
+    case 0: buffer = buffer0; break;
+    case 1: buffer = buffer1; break;
+    case 2: buffer = buffer2; break;
+    case 3: buffer = buffer3; break;
+    }
+
+    SDL_UnlockAudioStream(stream);
+}
+
+MENU_CALLBACK(setVSync)
+{
+    vsync = !vsync;
+    SetMenuItemChecked(settings, BTN_FRAME0, vsync);
+}
+
+MENU_CALLBACK(setKSync)
+{
+    ksync = !ksync;
+    SetMenuItemChecked(settings, BTN_FRAME0, ksync);
+}
+
+MENU_CALLBACK(setRaw)
+{
+    SetMenuItemChecked(settings, BTN_NTSCRAW, !GetMenuItemChecked(settings, BTN_NTSCRAW));
+    syncSettings(NULL);
+}
+
+
+MENU_CALLBACK(setPPU)
+{
+    powered = false;
+    power(NULL);
+}
+
 void InitMenuBar()
 {
 
-    InitGUI(window);
+    MENU menuBar = CreateMenuBar(window);
 
-    console = AddMenu("Console");
+    console = AddMenu(menuBar, "Console");
 
     AddMenuItem(console, BTN_POWER, "Power\tCtrl+P", power);
     AddMenuItem(console, BTN_RESET, "Reset\tCtrl+R", reset);
@@ -372,7 +442,7 @@ void InitMenuBar()
     AddMenuItem(loadStates, BTN_LOAD6, "Slot 6\tCtrl+7", load);
     AddMenuItem(loadStates, BTN_LOAD7, "Slot 7\tCtrl+8", load);
 
-    tas = AddMenu("TAS");
+    tas = AddMenu(menuBar, "TAS");
 
     MENU tasLoad = AddSubMenu(tas, "Load TAS");
     AddMenuItem(tasLoad, BTN_TAS3CT, "TriCNES Intercycle Cartridge Swapping TAS\t*.3ct", loadTAS);
@@ -445,7 +515,7 @@ void InitMenuBar()
     CreateDropdownSelectHandler(tasFilterSelect);
 
 
-    MENU tasRAM = AddSubMenu(tas, "Initial RAM pattern");
+    MENU tasRAM = AddSubMenu(tas, "Initial RAM Pattern");
     AddMenuItem(tasRAM, BTN_TASRAM0, "TriCNES");
     AddMenuItem(tasRAM, BTN_TASRAM1, "Bizhawk / FCEUX");
     AddMenuItem(tasRAM, BTN_TASRAM2, "SMB1 ACE Setup");
@@ -465,4 +535,107 @@ void InitMenuBar()
     MENU tasStart = AddSubMenu(tas, "Start TAS");
     AddMenuItem(tasStart, BTN_TASSTARTP, "From POWER", startTAS);
     AddMenuItem(tasStart, BTN_TASSTARTR, "From RESET", startTAS);
+
+    settings = AddMenu(menuBar, "Settings");
+
+    AddMenuItem(settings, BTN_VSYNC, "Picture VSync", setVSync);
+    AddMenuItem(settings, BTN_KSYNC, "Input VSync", setKSync);
+    AddMenuItem(settings, BTN_NTSCRAW, "Show Raw NTSC Signal", setRaw);
+
+    MENU settingsSpeed = AddSubMenu(settings, "Emulation Speed");
+    AddMenuItem(settingsSpeed, BTN_SPEED0, "1%");
+    AddMenuItem(settingsSpeed, BTN_SPEED1, "3%");
+    AddMenuItem(settingsSpeed, BTN_SPEED2, "6%");
+    AddMenuItem(settingsSpeed, BTN_SPEED3, "12%");
+    AddMenuItem(settingsSpeed, BTN_SPEED4, "25%");
+    AddMenuItem(settingsSpeed, BTN_SPEED5, "50%");
+    AddMenuItem(settingsSpeed, BTN_SPEED6, "75%");
+    AddMenuItem(settingsSpeed, BTN_SPEED7, "100%");
+    AddMenuItem(settingsSpeed, BTN_SPEED8, "150%");
+    AddMenuItem(settingsSpeed, BTN_SPEED9, "200%");
+    AddMenuItem(settingsSpeed, BTN_SPEEDA, "300%");
+    AddMenuItem(settingsSpeed, BTN_SPEEDB, "400%");
+    AddMenuItem(settingsSpeed, BTN_SPEEDC, "800%");
+    AddMenuItem(settingsSpeed, BTN_SPEEDD, "1600%");
+    AddMenuItem(settingsSpeed, BTN_SPEEDE, "3200%");
+    AddMenuItem(settingsSpeed, BTN_SPEEDF, "6400%");
+
+    MENU_ID* speedMenus = new MENU_ID[]{ BTN_SPEED0, BTN_SPEED1, BTN_SPEED2, BTN_SPEED3,
+                                         BTN_SPEED4, BTN_SPEED5, BTN_SPEED6, BTN_SPEED7,
+                                         BTN_SPEED8, BTN_SPEED9, BTN_SPEEDA, BTN_SPEEDB,
+                                         BTN_SPEEDC, BTN_SPEEDD, BTN_SPEEDE, BTN_SPEEDF };
+
+    settingsSpeedSelect = {
+        settingsSpeed,
+        speedMenus,
+        16,
+        syncSettings
+    };
+
+    CreateDropdownSelectHandler(settingsSpeedSelect);
+    SetDropdownSelectedIndex(settingsSpeedSelect, 7);
+
+    MENU settingsPPU = AddSubMenu(settings, "PPU Clock");
+    AddMenuItem(settingsPPU, BTN_SPPU0, "Phase 0");
+    AddMenuItem(settingsPPU, BTN_SPPU1, "Phase 1");
+    AddMenuItem(settingsPPU, BTN_SPPU2, "Phase 2");
+    AddMenuItem(settingsPPU, BTN_SPPU3, "Phase 3");
+
+    MENU_ID* sppuMenus = new MENU_ID[]{ BTN_SPPU0, BTN_SPPU1, BTN_SPPU2, BTN_SPPU3 };
+
+    settingsPPUSelect = {
+        settingsPPU,
+        sppuMenus,
+        4,
+        setPPU
+    };
+
+    CreateDropdownSelectHandler(settingsPPUSelect);
+    SetDropdownSelectedIndex(settingsPPUSelect, 0);
+
+    MENU settingsMode = AddSubMenu(settings, "Picture Mode");
+    AddMenuItem(settingsMode, BTN_MODE0, "RGB\t256 x 240");
+    AddMenuItem(settingsMode, BTN_MODE1, "RGB Uncropped\t341 x 262");
+    AddMenuItem(settingsMode, BTN_MODE2, "NTSC\t256 x 8 x 240");
+    AddMenuItem(settingsMode, BTN_MODE3, "NTSC Uncropped\t341 x 8 x 262");
+
+    MENU_ID* modeMenus = new MENU_ID[]{ BTN_MODE0, BTN_MODE1, BTN_MODE2, BTN_MODE3 };
+
+    settingsModeSelect = {
+        settingsMode,
+        modeMenus,
+        4,
+        syncSettings
+    };
+
+    CreateDropdownSelectHandler(settingsModeSelect);
+    SetDropdownSelectedIndex(settingsModeSelect, 0);
+
+
+    MENU settingsScale = AddSubMenu(settings, "Picture Scale");
+    AddMenuItem(settingsScale, BTN_SCALE0, "True 8:7 PAR");
+    AddMenuItem(settingsScale, BTN_SCALE1, "1x");
+    AddMenuItem(settingsScale, BTN_SCALE2, "2x");
+    AddMenuItem(settingsScale, BTN_SCALE3, "3x");
+    AddMenuItem(settingsScale, BTN_SCALE4, "4x");
+    AddMenuItem(settingsScale, BTN_SCALE5, "5x");
+    AddMenuItem(settingsScale, BTN_SCALE6, "6x");
+    AddMenuItem(settingsScale, BTN_SCALE7, "7x");
+    AddMenuItem(settingsScale, BTN_SCALE8, "8x");
+    
+    MENU_ID* scaleMenus = new MENU_ID[]{ BTN_SCALE0, BTN_SCALE1, BTN_SCALE2, BTN_SCALE3, BTN_SCALE4, BTN_SCALE5, BTN_SCALE6, BTN_SCALE7, BTN_SCALE8 };
+
+    settingsScaleSelect = {
+        settingsScale,
+        scaleMenus,
+        9,
+        syncSettings
+    };
+
+    CreateDropdownSelectHandler(settingsScaleSelect);
+    SetDropdownSelectedIndex(settingsScaleSelect, 1);
+
+    tools = AddMenu(menuBar, "Tools");
+
+    AddMenuItem(tools, BTN_NTVIEWER, "Nametable Viewer", openNTViewer);
 }

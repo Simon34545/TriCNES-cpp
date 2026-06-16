@@ -22,16 +22,26 @@ static void frame()
 
 static void render()
 {
-    SDL_LockTexture(buffer,
-        NULL,
-        (void**)&pixels,
-        &pitch);
+    SDL_LockTexture(buffer0, NULL, (void**)&pixels0, &pitch0);
+    SDL_LockTexture(buffer1, NULL, (void**)&pixels1, &pitch1);
+    SDL_LockTexture(buffer2, NULL, (void**)&pixels2, &pitch2);
+    SDL_LockTexture(buffer3, NULL, (void**)&pixels3, &pitch3);
 
-    memcpy(pixels, emulator.Screen, 256 * 240 * sizeof(int));
 
-    SDL_UnlockTexture(buffer);
+    texcpy(pixels0, emulator.Screen,             pitch0, 256 * 1 * sizeof(int), 240);
+    texcpy(pixels1, emulator.BorderedScreen,     pitch1, 341 * 1 * sizeof(int), 262);
+    texcpy(pixels2, emulator.NTSCScreen,         pitch2, 256 * 8 * sizeof(int), 240);
+    texcpy(pixels3, emulator.BorderedNTSCScreen, pitch3, 341 * 8 * sizeof(int), 262);
+
+    SDL_UnlockTexture(buffer0);
+    SDL_UnlockTexture(buffer1);
+    SDL_UnlockTexture(buffer2);
+    SDL_UnlockTexture(buffer3);
+
     SDL_RenderTexture(renderer, buffer, NULL, NULL);
     SDL_RenderPresent(renderer);
+
+    if (NTWindow != NULL) RenderNametable();
 }
 
 static void fillBuffer()
@@ -63,7 +73,7 @@ static void fillBuffer()
                         emulator.FrameAdvance_ReachedVBlank = false;
                     }
                 }
-                t += clockt;
+                t += clockt / speed;
             }
             t -= samplet;
 
@@ -283,15 +293,21 @@ SDL_AppResult SDL_AppInit(void** appstate, int argc, char* argv[])
     
     SDL_ResumeAudioDevice(SDL_GetAudioStreamDevice(stream));
 
-    buffer = SDL_CreateTexture(renderer,
-        SDL_PIXELFORMAT_ARGB8888,
-        SDL_TEXTUREACCESS_STREAMING,
-        256,
-        240);
+    buffer0 = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STREAMING, 256, 240);
+    buffer1 = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STREAMING, 341, 262);
+    buffer2 = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STREAMING, 256 * 8, 240);
+    buffer3 = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STREAMING, 341 * 8, 262);
+
+    SDL_SetTextureScaleMode(buffer0, SDL_SCALEMODE_NEAREST);
+    SDL_SetTextureScaleMode(buffer1, SDL_SCALEMODE_NEAREST);
+    SDL_SetTextureScaleMode(buffer2, SDL_SCALEMODE_NEAREST);
+    SDL_SetTextureScaleMode(buffer3, SDL_SCALEMODE_NEAREST);
+
+    buffer = buffer0;
 
     InitMenuBar();
 
-    SDL_SetWindowSize(window, 256, 240);
+    syncSettings(NULL);
 
 	return SDL_APP_CONTINUE;
 }
@@ -300,8 +316,8 @@ SDL_AppResult SDL_AppIterate(void* appstate)
 {
     SDL_LockAudioStream(stream);
     fillBuffer();
-    if (!vsync) render();
     SDL_UnlockAudioStream(stream);
+    if (!vsync) render();
 
     return SDL_APP_CONTINUE;
 }
@@ -325,6 +341,13 @@ SDL_AppResult SDL_AppEvent(void* appstate, SDL_Event* e)
             keyUp(e->key.key);
         else
             deferred_keys.push_back({ false, e->key.key });
+    }
+    else if (e->type == SDL_EVENT_WINDOW_CLOSE_REQUESTED)
+    {
+        SDL_Window* win = SDL_GetWindowFromID(e->window.windowID);
+
+        closeNTViewer();
+        if (win == window) return SDL_APP_SUCCESS;
     }
 
     return SDL_APP_CONTINUE;
