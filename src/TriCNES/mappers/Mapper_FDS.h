@@ -11,7 +11,7 @@ namespace TriCNES
         byte FDS_4023_IOEnable = 0;
         byte FDS_4025_Control = 0;
 
-        TriCNES::Mapper_FDS(byte* fds_bios)
+        Mapper_FDS(byte* fds_bios)
         {
             FDS_BIOS = fds_bios;
         }

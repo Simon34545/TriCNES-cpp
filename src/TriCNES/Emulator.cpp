@@ -1,6 +1,8 @@
 #include "Emulator.h"
 #include "mappers.h"
 
+#include <cstring>
+
 namespace TriCNES
 {
     Cartridge::Cartridge(std::string filepath)
