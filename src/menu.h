@@ -369,7 +369,7 @@ MENU_CALLBACK(syncSettings)
         height *= scale;
     }
 
-    if (caller != BTN_POWER) SDL_SetWindowSize(window, width, height);
+    if (caller != BTN_POWER) ResizeMenuWindow(window, width, height);
 
     switch (mode)
     {
@@ -410,9 +410,9 @@ MENU_CALLBACK(setPPU)
 void InitMenuBar()
 {
 
-    MENU menuBar = CreateMenuBar(window);
+    MENUBAR menuBar = CreateMenuBar(window);
 
-    console = AddMenu(menuBar, "Console");
+    console = AddMenu(menuBar, "&Console");
 
     AddMenuItem(console, BTN_POWER, "Power\tCtrl+P", power);
     AddMenuItem(console, BTN_RESET, "Reset\tCtrl+R", reset);
@@ -442,7 +442,7 @@ void InitMenuBar()
     AddMenuItem(loadStates, BTN_LOAD6, "Slot 6\tCtrl+7", load);
     AddMenuItem(loadStates, BTN_LOAD7, "Slot 7\tCtrl+8", load);
 
-    tas = AddMenu(menuBar, "TAS");
+    tas = AddMenu(menuBar, "&TAS");
 
     MENU tasLoad = AddSubMenu(tas, "Load TAS");
     AddMenuItem(tasLoad, BTN_TAS3CT, "TriCNES Intercycle Cartridge Swapping TAS\t*.3ct", loadTAS);
@@ -536,7 +536,7 @@ void InitMenuBar()
     AddMenuItem(tasStart, BTN_TASSTARTP, "From POWER", startTAS);
     AddMenuItem(tasStart, BTN_TASSTARTR, "From RESET", startTAS);
 
-    settings = AddMenu(menuBar, "Settings");
+    settings = AddMenu(menuBar, "&Settings");
 
     AddMenuItem(settings, BTN_VSYNC, "Picture VSync", setVSync);
     AddMenuItem(settings, BTN_KSYNC, "Input VSync", setKSync);
@@ -635,7 +635,7 @@ void InitMenuBar()
     CreateDropdownSelectHandler(settingsScaleSelect);
     SetDropdownSelectedIndex(settingsScaleSelect, 1);
 
-    tools = AddMenu(menuBar, "Tools");
+    tools = AddMenu(menuBar, "&Tools");
 
     AddMenuItem(tools, BTN_NTVIEWER, "Nametable Viewer", openNTViewer);
 }

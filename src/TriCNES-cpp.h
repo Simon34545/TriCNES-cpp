@@ -46,6 +46,11 @@ static SDL_Window* window;
 static bool mod_shift = false;
 static bool mod_ctrl = false;
 
+#ifdef QTGUI
+QApplication* qtApp = NULL;
+#endif
+
+
 // Emulator vars
 static TriCNES::Emulator emulator;
 static TriCNES::Cartridge cartridge;

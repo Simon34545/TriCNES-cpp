@@ -305,6 +305,11 @@ SDL_AppResult SDL_AppInit(void** appstate, int argc, char* argv[])
 
     buffer = buffer0;
 
+
+#ifdef QTGUI
+    qtApp = new QApplication(argc, argv);
+#endif
+
     InitMenuBar();
 
     syncSettings(NULL);
@@ -318,6 +323,10 @@ SDL_AppResult SDL_AppIterate(void* appstate)
     fillBuffer();
     SDL_UnlockAudioStream(stream);
     if (!vsync) render();
+
+#ifdef QTGUI
+    qtApp->processEvents();
+#endif
 
     return SDL_APP_CONTINUE;
 }

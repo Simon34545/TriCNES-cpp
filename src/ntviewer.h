@@ -157,14 +157,14 @@ MENU_CALLBACK(openNTViewer)
 
 	NTTexture = SDL_CreateTexture(NTRenderer, SDL_PIXELFORMAT_ARGB8888, SDL_TEXTUREACCESS_STREAMING, 512, 480);
 
-	MENU menuBar = CreateMenuBar(NTWindow);
+	MENUBAR menuBar = CreateMenuBar(NTWindow);
 
 	NTSettings = AddMenu(menuBar, "Settings");
 	AddMenuItem(NTSettings, BTN_NTBACKDROP, "Use Backdrop Color", setNTBackdrop);
 	AddMenuItem(NTSettings, BTN_NTBOUNDARY, "Draw Screen Boundary", setNTBoundary);
 	AddMenuItem(NTSettings, BTN_NTSOVERLAY, "Overlay Screen", setNTSOverlay);
 
-	SDL_SetWindowSize(NTWindow, 512, 480); // This refreshes the window, SDL will factor in the offset created by the menu bar
+    ResizeMenuWindow(NTWindow, 512, 480);
 }
 
 void closeNTViewer()
