@@ -320,18 +320,22 @@ MENUBAR CreateMenuBar(SDL_Window* win)
 
 	if (SDL_strcmp(name, "windows") == 0)
 	{
+		printf("Attempt to load windows window ID\n");
 		windowID = (WId)SDL_GetPointerProperty(props, SDL_PROP_WINDOW_WIN32_HWND_POINTER, NULL);
 	}
 	else if (SDL_strcmp(name, "x11") == 0)
 	{
+		printf("Attempt to load x11 window ID\n");
 		windowID = (WId)SDL_GetPointerProperty(props, SDL_PROP_WINDOW_X11_WINDOW_NUMBER, NULL);
 	}
 	else if (SDL_strcmp(name, "wayland") == 0)
 	{
+		printf("Attempt to load wayland window ID\n");
 		windowID = (WId)SDL_GetPointerProperty(props, SDL_PROP_WINDOW_WAYLAND_EGL_WINDOW_POINTER, NULL);
 	}
 	else if(SDL_strcmp(name, "cocoa") == 0)
 	{
+		printf("Attempt to load cocoa window ID\n");
 		windowID = (WId)SDL_GetPointerProperty(props, SDL_PROP_WINDOW_COCOA_WINDOW_POINTER, NULL);
 	}
 	
