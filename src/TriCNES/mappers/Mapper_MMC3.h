@@ -202,7 +202,7 @@ namespace TriCNES
                     return;
                 case 0xE000:
                     Mapper_4_EnableIRQ = false;
-                    Cart->Emu->IRQ_LevelDetector = false;
+                    Connector_IRQPin(false); // Acknowledge the IRQ
                     return;
                 case 0xE001:
                     Mapper_4_EnableIRQ = true;
@@ -232,66 +232,61 @@ namespace TriCNES
                 else                       { Address &= 0x7FF; return (Mapper_4_CHR_2K8 * 0x400 + Address) & (Cart->CHRROMLength - 1); }
             }
         }
-        void CheckCIRAM() override
+        void Connector_CheckCIRAM() override
         {
             if (Cart->AlternativeNametableArrangement)
             {
-                Cart->Emu->SeventyTwoPinConnector[56] = !Cart->Emu->SeventyTwoPinConnector[57] && !Cart->Emu->SeventyTwoPinConnector[61];
+                if (!Cart->Emu->ConnectorPinFloating[56]) { Cart->Emu->SeventyTwoPinConnector[56] = !Cart->Emu->SeventyTwoPinConnector[57] && !Cart->Emu->SeventyTwoPinConnector[61]; }
             }
             else
             {
-                Cart->Emu->SeventyTwoPinConnector[56] = !Cart->Emu->SeventyTwoPinConnector[57];
+                if (!Cart->Emu->ConnectorPinFloating[56]) { Cart->Emu->SeventyTwoPinConnector[56] = !Cart->Emu->SeventyTwoPinConnector[57]; }
             }
 
             if (Mapper_4_NametableMirroring) //horizontal
             {
-                Cart->Emu->SeventyTwoPinConnector[21] = Cart->Emu->SeventyTwoPinConnector[61];
+                if (!Cart->Emu->ConnectorPinFloating[21]) { Cart->Emu->SeventyTwoPinConnector[21] = Cart->Emu->SeventyTwoPinConnector[61]; }
             }
             else //vertical
             {
-                Cart->Emu->SeventyTwoPinConnector[21] = Cart->Emu->SeventyTwoPinConnector[62];
+                if (!Cart->Emu->ConnectorPinFloating[21]) { Cart->Emu->SeventyTwoPinConnector[21] = Cart->Emu->SeventyTwoPinConnector[62]; }
             }
         }
-        void FetchPPU() override
+        void AccessPPU() override
         {
-            // This will always use the upper 8 bits of the address bus | the octal latch. This Octal Latch replaces the lower 8 bits of the address bus.
             ushort Address = Connector_ReadPPUAddressPins();
-
-            byte t = Cart->Emu->PPU_OctalLatch;
-            if (Cart->Emu->SeventyTwoPinConnector[57] && Address < 0x2000) // Addresses $2000 through $3FFF do NOT read from the cartrdige.
-            {
-                int CHR_Address = FetchPatternAddress(Address);
-                t = Cart->CHRROM[CHR_Address];
-            }
-            else if (Cart->AlternativeNametableArrangement && (Address & 0x800) != 0)
-            {
-                // On cartridge VRAM for extra nametables.
-                // using the extra PRG VRAM.
-                Address &= 0x7FF;
-                byte b = Cart->PRGVRAM[Address];
-                Connector_SetUpPPUDataPins(b);
-                t = Connector_ReadPPUDataPins();
-            }
-            Connector_SetUpPPUDataPins(t);
-        }
-        void WritePPU() override
-        {
-            // This will always use the upper 8 bits of the address bus | the octal latch. This Octal Latch replaces the lower 8 bits of the address bus.
-            ushort Address = Connector_ReadPPUAddressPins();
-            byte input = Connector_ReadPPUDataPins();
             if (Cart->Emu->SeventyTwoPinConnector[57] && Address < 0x2000) // Addresses $2000 through $3FFF do NOT read from the cartrdige.
             {
                 int CHR_Address = Cart->MapperChip->FetchPatternAddress(Address);
-                Cart->CHRROM[CHR_Address] = input;
+                byte t = (byte)Address;
+                byte input = Connector_ReadPPUDataPins();
+                if (!Cart->Emu->SeventyTwoPinConnector[20]) // Reads
+                {
+                    t = Cart->CHRROM[CHR_Address];
+                    Connector_SetUpPPUDataPins(t);
+                }
+                if (!Cart->Emu->SeventyTwoPinConnector[55] && Cart->UsingCHRRAM) // Writes
+                {
+                    Cart->CHRROM[CHR_Address] = input;
+                }
             }
-            else if (Cart->AlternativeNametableArrangement && (Address & 0x800) != 0)
+            else if (Cart->AlternativeNametableArrangement && (Address & 0x800) != 0) // Extra Nametable
             {
-                // On cartridge VRAM for extra nametables.
-                // using the extra PRG VRAM.
                 Address &= 0x7FF;
-                Cart->PRGVRAM[Address] = input;
+                byte t = (byte)Address;
+                byte input = Connector_ReadPPUDataPins();
+                if (!Cart->Emu->SeventyTwoPinConnector[20]) // Reads
+                {
+                    byte b = Cart->PRGVRAM[Address];
+                    Connector_SetUpPPUDataPins(b);
+                }
+                if (!Cart->Emu->SeventyTwoPinConnector[55]) // Writes
+                {
+                    Cart->PRGVRAM[Address] = input;
+                }
             }
         }
+
         std::vector<byte> SaveMapperRegisters() override
         {
             std::vector<byte> State;
@@ -366,7 +361,7 @@ namespace TriCNES
                     {
                         if (Mapper_4_EnableIRQ) // if setting the value to zero, run an IRQ
                         {
-                            Cart->Emu->IRQ_LevelDetector = true;
+                            Connector_IRQPin(true); // Run an IRQ!
                         }
                     }
                 }
@@ -378,7 +373,7 @@ namespace TriCNES
                     {
                         if (Mapper_4_EnableIRQ) // and the MMC3 IRQ is enabled...
                         {
-                            Cart->Emu->IRQ_LevelDetector = true; // Run an IRQ!
+                            Connector_IRQPin(true); // Run an IRQ!
                         }
                     }
                     else if (Mapper_4_IRQCounter == 255) // if the counter underflows...
@@ -388,7 +383,7 @@ namespace TriCNES
                         {
                             if (Mapper_4_EnableIRQ)
                             {
-                                Cart->Emu->IRQ_LevelDetector = true;
+                                Connector_IRQPin(true); // Run an IRQ!
                             }
                         }
                     }

@@ -80,9 +80,7 @@ namespace TriCNES
         virtual void FetchPRG(ushort Address, bool Observe);
         virtual void StorePRG(ushort Address, byte Input);
         virtual int FetchPatternAddress(ushort Address);
-        virtual void FetchPPU();
-        virtual void WritePPU();
-        virtual void CheckCIRAM();
+        virtual void AccessPPU();
         virtual std::vector<byte> SaveMapperRegisters();
         virtual void LoadMapperRegisters(std::vector<byte> State, int startIndex/*, int &exitIndex*/);
         virtual void PPUClock(); // runs every PPU clock. (See MMC3)
@@ -103,6 +101,9 @@ namespace TriCNES
         ushort Connector_ReadCPUAddressPins();
         void Connector_SetUpCPUDataPins(byte t);
         byte Connector_ReadCPUDataPins();
+        virtual void Connector_CheckCIRAM();
+        virtual void Connector_IRQPin(bool t);
+        virtual void Connector_PPU_RW(bool RD, bool WR);
     };
 
     class DiskDrive
@@ -239,7 +240,9 @@ namespace TriCNES
         byte CPUClock = 0;    // Counts down from 12. When it's 0, a CPU cycle occurs.
         byte MasterClock = 0; // Counts up every master clock cycle. Resets at 24.
 
+
         bool* SeventyTwoPinConnector; // The 72 pin connector.
+        bool* ConnectorPinFloating; // Toggle which pins are disconnected.
         /* The actual pinout is 1-indexed, but I don't care, I'm zero-indexing this lad.
          * Key:
          *     -- Power and Ground
@@ -442,15 +445,15 @@ namespace TriCNES
             X = 0;
             Y = 0;
             VRAM = new byte[0x800];
-            OAM = new byte[0x100];
+            OAM = new byte[0x100]();
             OAM2 = new byte[32];
             for (int oam2_init = 0; oam2_init < 32; oam2_init++)
             {
                 OAM2[oam2_init] = 0xFF;
             }
 
-            SeventyTwoPinConnector = new bool[72];
-
+            SeventyTwoPinConnector = new bool[72]();
+            ConnectorPinFloating = new bool[72]();
             // set up RAM and PPU RAM Pattern
             int i = 0;
             while (i < 0x800)
@@ -1776,11 +1779,12 @@ namespace TriCNES
         byte FetchVideoMemory()
         {
             Cart->MapperChip->Connector_SetUpPPUAddressPins();
-            Cart->MapperChip->CheckCIRAM();
+            Cart->MapperChip->Connector_CheckCIRAM();
             byte t = 0;
 
             // Always attempt to read from the cartridge. The data pins would not be updated if reading from the nametable.
-            Cart->MapperChip->FetchPPU();
+            Cart->MapperChip->Connector_PPU_RW(PPU_READ, PPU_WRITE);
+            Cart->MapperChip->AccessPPU();
             t = Cart->MapperChip->Connector_ReadPPUDataPins();
 
             if (PPU_AddressBus >= 0x2000 && Cart->Emu->SeventyTwoPinConnector[56])
@@ -1802,7 +1806,7 @@ namespace TriCNES
         void WriteVideoMemory(byte input)
         {
             Cart->MapperChip->Connector_SetUpPPUAddressPins();
-            Cart->MapperChip->CheckCIRAM();
+            Cart->MapperChip->Connector_CheckCIRAM();
             if (PPU_AddressBus >= 0x3F00)
             {
                 PaletteRAM[PPU_AddressBus & (((PPU_AddressBus & 0x3) == 0) ? 0x0F : 0x1F)] = input;
@@ -1819,7 +1823,8 @@ namespace TriCNES
             else
             {
                 Cart->MapperChip->Connector_SetUpPPUDataPins(input);
-                Cart->MapperChip->WritePPU();
+                Cart->MapperChip->Connector_PPU_RW(PPU_READ, PPU_WRITE);
+                Cart->MapperChip->AccessPPU();
             }
 
         }
@@ -2009,7 +2014,7 @@ namespace TriCNES
             }
             PPU_2007_DB_PAR = PPU_2007_Write_Latches[1] && !PPU_2007_Write_Latches[3];
             PPU_WRITE = !PPU_2007_PaletteRAMEnable && PPU_2007_DB_PAR;
-            if (PPU_2007_DB_PAR) // Using PAR instead of PPU_WRITE, since I re-use StorePPUData() for writes to palette RAM.
+            if (PPU_2007_DB_PAR) // Using PAR instead of PPU_WRITE, since I re-use WriteVideoMemory() for writes to palette RAM.
             {
                 WriteVideoMemory(PPU_2007_WriteData);
             }
@@ -9069,7 +9074,7 @@ namespace TriCNES
             {
                 // Reading from ROM.
                 // Different mappers could rearrange the data from the ROM into different locations on the system bus.
-                return MapperObserve(Address, Cart->MemoryMapper);
+                return MapperObserve(Address);
             }
             else if (Address < 0x2000)
             {
@@ -9137,7 +9142,7 @@ namespace TriCNES
             else
             {
                 //mapper chip stuff, but also open bus!
-                return MapperObserve(Address, Cart->MemoryMapper);
+                return MapperObserve(Address);
             }
 
             return dataBus;
@@ -9350,7 +9355,7 @@ namespace TriCNES
         }
 
     private:
-        byte MapperObserve(ushort Address, byte Mapper)
+        byte MapperObserve(ushort Address)
         {
             Cart->MapperChip->FetchPRG(Address, true);
             if (Cart->MapperChip->observedDataPinsAreNotFloating)

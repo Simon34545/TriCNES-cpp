@@ -69,7 +69,7 @@ namespace TriCNES
                     notFloating = true;
                     data = Cart->FDS->ShiftRegisterLatch;
                     Cart->FDS->Status_ByteTransferFlag = false;
-                    Cart->Emu->IRQ_LevelDetector = false; //acknowledge the IRQ
+                    Connector_IRQPin(false); //acknowledge the IRQ
                 }
                 break;
                 case 2:
@@ -124,7 +124,7 @@ namespace TriCNES
                     if ((FDS_4023_IOEnable & 1) == 0)
                     {
                         // Disable disk I/O registers
-                        Cart->Emu->IRQ_LevelDetector = false; //acknowledge the IRQ
+                        Connector_IRQPin(false); //acknowledge the IRQ
                         FDS_4025_Control &= 0xF3;
                         FDS_4025_Control |= 6;
                     }
@@ -157,24 +157,24 @@ namespace TriCNES
                 }
             }
         }
-        void CheckCIRAM() override
+        void Connector_CheckCIRAM() override
         {
-            Cart->Emu->SeventyTwoPinConnector[56] = !Cart->Emu->SeventyTwoPinConnector[57];
+            if (!Cart->Emu->ConnectorPinFloating[56]) { Cart->Emu->SeventyTwoPinConnector[56] = !Cart->Emu->SeventyTwoPinConnector[57]; }
 
             if (((FDS_4025_Control >> 3) & 1) == 1) //horizontal
             {
-                Cart->Emu->SeventyTwoPinConnector[21] = Cart->Emu->SeventyTwoPinConnector[61];
+                if (!Cart->Emu->ConnectorPinFloating[21]) { Cart->Emu->SeventyTwoPinConnector[21] = Cart->Emu->SeventyTwoPinConnector[61]; }
             }
             else //vertical
             {
-                Cart->Emu->SeventyTwoPinConnector[21] = Cart->Emu->SeventyTwoPinConnector[62];
+                if (!Cart->Emu->ConnectorPinFloating[21]) { Cart->Emu->SeventyTwoPinConnector[21] = Cart->Emu->SeventyTwoPinConnector[62]; }
             }
         }
         void FDS_ByteTransferFlag() override
         {
             if ((FDS_4025_Control & 0x80) != 0)
             {
-                Cart->Emu->IRQ_LevelDetector = true;
+                Connector_IRQPin(true); // Run an IRQ!
             }
         }
         byte FDS_Get4025() override
