@@ -559,7 +559,7 @@ namespace TriCNES
 
             programCounter = 0xFFFF; // Technically, this value is nondeterministic. It also doesn't matter where it is, as it will be initialized in the RESET instruction.
             PPU_Scanline = 0;        // The PPU begins on dot 0 of scanline 0
-            PPU_Dot = 7;       // Shouldn't this be 0? I don't know why, but this passes all the tests if this is 7, so...?
+            PPU_Dot = 0;
 
             PPU_OddFrame = true;    // And this is technically considered an "odd" frame when it comes to even/odd frame timing.
 
@@ -1406,8 +1406,6 @@ namespace TriCNES
         bool PPU_CanDetectSpriteZeroHit = false; // Only 1 sprite zero hit is allowed per frame. This gets set if a sprite zero hit occurs, and cleared at the end of vblank.
 
     public:
-        bool PPU_A12_Prev = false; // The MMC3 chip's IRQ counter is changed whenever bit 12 of the PPU Address is changing from a 0 to a 1. This is recorded at the start of a PPU cycle, and checked at the end.
-
         bool PPU_OddFrame = false; // Every other frame is 1 ppu cycle shorter.
 
         byte DotColor = 0; // The pixel output is delayed by 2 dots.
@@ -1580,7 +1578,6 @@ namespace TriCNES
             PPUStatus_SpriteOverflow_Delayed = PPUStatus_SpriteOverflow;
 
             Cart->MapperChip->PPUClock(); // If the mapper chip does something every ppu clock... (See MMC3)
-            PPU_A12_Prev = (PPU_AddressBus & 0b0001000000000000) != 0; // Record the value of the A12. This is needed for MMC3.
 
             if (PPU_OddFrame && (PPU_Mask_ShowBackground || PPU_Mask_ShowSprites))
             {
@@ -1817,20 +1814,20 @@ namespace TriCNES
             Cart->MapperChip->Connector_SetUpPPUAddressPins();
             Cart->MapperChip->Connector_SetUpPPUDataPins((byte)PPU_AddressBus); // If AccessPPU() doesn't update the pins, then we get back the address bus.
             Cart->MapperChip->Connector_CheckCIRAM();
+            bool CE = !SeventyTwoPinConnector[56] && !ConnectorPinFloating[56] && !ConnectorPinFloating[57];
 
             // Always attempt to read from the cartridge. The data pins would not be updated if reading from the nametable.
             Cart->MapperChip->Connector_PPU_RW(PPU_READ, PPU_WRITE);
             Cart->MapperChip->AccessPPU();
             byte t = Cart->MapperChip->Connector_ReadPPUDataPins((byte)PPU_AddressBus);
 
-            if (PPU_AddressBus >= 0x2000 && Cart->Emu->SeventyTwoPinConnector[56])
+            if (CE)
             {
                 // We're reading from on-console VRAM, not the cartridge.
                 // NOTE: In theory you could trigger bus conflicts with this. I'm currently just assuming the bus is free.
-                ushort Address = (ushort)((Cart->Emu->PPU_AddressBus & 0x3F00) | Cart->Emu->PPU_OctalLatch);
-                Address &= 0x3FF;
-                Address |= (ushort)(Cart->Emu->SeventyTwoPinConnector[21] ? 0x400 : 0);
-                t = Cart->Emu->VRAM[Address];
+                ushort Address = (ushort)((PPU_AddressBus & 0x300) | PPU_OctalLatch);
+                Address |= (ushort)(SeventyTwoPinConnector[21] ? 0x400 : 0);
+                t = VRAM[Address];
             }
 
             PPU_AddressBus &= 0xFF00;
@@ -1843,18 +1840,19 @@ namespace TriCNES
         {
             Cart->MapperChip->Connector_SetUpPPUAddressPins();
             Cart->MapperChip->Connector_CheckCIRAM();
+            bool CE = !SeventyTwoPinConnector[56] && !ConnectorPinFloating[56] && !ConnectorPinFloating[57];
+
             if ((PPU_AddressBus & 0x3FFF) >= 0x3F00)
             {
                 PaletteRAM[PPU_AddressBus & (((PPU_AddressBus & 0x3) == 0) ? 0x0F : 0x1F)] = input;
             }
-            else if ((PPU_AddressBus & 0x3FFF) >= 0x2000 && Cart->Emu->SeventyTwoPinConnector[56])
+            else if (CE)
             {
                 // We're writing to on-console VRAM, not the cartridge.
                 // NOTE: In theory you could trigger bus conflicts with this. I'm currently just assuming the bus is free.
-                ushort Address = (ushort)((Cart->Emu->PPU_AddressBus & 0x3F00) | Cart->Emu->PPU_OctalLatch);
-                Address &= 0x3FF;
-                Address |= (ushort)(Cart->Emu->SeventyTwoPinConnector[21] ? 0x400 : 0);
-                Cart->Emu->VRAM[Address] = input;
+                ushort Address = (ushort)((PPU_AddressBus & 0x300) | PPU_OctalLatch);
+                Address |= (ushort)(SeventyTwoPinConnector[21] ? 0x400 : 0);
+                VRAM[Address] = input;
             }
             else
             {
@@ -10804,7 +10802,6 @@ namespace TriCNES
             State.push_back(PPU_HighBitPlane);
             State.push_back(PPU_Attribute);
             State.push_back((byte)(PPU_CanDetectSpriteZeroHit ? 1 : 0));
-            State.push_back((byte)(PPU_A12_Prev ? 1 : 0));
             State.push_back((byte)(PPU_OddFrame ? 1 : 0));
             State.push_back(PaletteRAMAddress);
             State.push_back((byte)(ThisDotReadFromPaletteRAM ? 1 : 0));
@@ -11109,7 +11106,6 @@ namespace TriCNES
             PPU_HighBitPlane = State[p++];
             PPU_Attribute = State[p++];
             PPU_CanDetectSpriteZeroHit = (State[p++] & 1) == 1;
-            PPU_A12_Prev = (State[p++] & 1) == 1;
             PPU_OddFrame = (State[p++] & 1) == 1;
             PaletteRAMAddress = State[p++];
             ThisDotReadFromPaletteRAM = (State[p++] & 1) == 1;

@@ -137,7 +137,7 @@ namespace TriCNES
         }
         void Mapper::FetchCPU()
         {
-            if ((Cart->Emu->ConnectorPinFloating[0] && Cart->Emu->ConnectorPinFloating[75]) || Cart->Emu->ConnectorPinFloating[35]) { return; } // If the cartridge is disconnected from power or ground, it cannot do anything.
+            if ((Cart->Emu->ConnectorPinFloating[0] && Cart->Emu->ConnectorPinFloating[71]) || Cart->Emu->ConnectorPinFloating[35]) { return; } // If the cartridge is disconnected from power or ground, it cannot do anything.
             Connector_ReadCPUAddressPins();
 
             if (!Cart->Emu->SeventyTwoPinConnector[49]) // CPU /A15 + /M2
@@ -253,7 +253,7 @@ namespace TriCNES
         {
             // I'm not actually emulating the CIC internals. (... yet.)
             // Instead, I'll simply return true so long as the cartridge has power.
-            if ((Cart->Emu->ConnectorPinFloating[0] && Cart->Emu->ConnectorPinFloating[75]) || Cart->Emu->ConnectorPinFloating[35]) { return false; } // If the cartridge is disconnected from power or ground, it cannot do anything, so the CIC check fails.
+            if ((Cart->Emu->ConnectorPinFloating[0] && Cart->Emu->ConnectorPinFloating[71]) || Cart->Emu->ConnectorPinFloating[35]) { return false; } // If the cartridge is disconnected from power or ground, it cannot do anything, so the CIC check fails.
             if (Cart->Emu->ConnectorPinFloating[33] || Cart->Emu->ConnectorPinFloating[34] || Cart->Emu->ConnectorPinFloating[70]) { return false; } // If these pins for the CIC chip get disconnected, the CIC chip cannot match the console's CIC.
             return true;
         }
@@ -307,16 +307,15 @@ namespace TriCNES
         }
         byte Mapper::Connector_ReadPPUDataPins(byte bus)
         {
-            byte t = bus;
-            if (!Cart->Emu->ConnectorPinFloating[29]) { t &= 0xFE; t |= (byte)(Cart->Emu->SeventyTwoPinConnector[29] ? 0x01 : 0); } // PPU D0
-            if (!Cart->Emu->ConnectorPinFloating[30]) { t &= 0xFD; t |= (byte)(Cart->Emu->SeventyTwoPinConnector[30] ? 0x02 : 0); } // PPU D1
-            if (!Cart->Emu->ConnectorPinFloating[31]) { t &= 0xFB; t |= (byte)(Cart->Emu->SeventyTwoPinConnector[31] ? 0x04 : 0); } // PPU D2
-            if (!Cart->Emu->ConnectorPinFloating[32]) { t &= 0xF7; t |= (byte)(Cart->Emu->SeventyTwoPinConnector[32] ? 0x08 : 0); } // PPU D3
-            if (!Cart->Emu->ConnectorPinFloating[68]) { t &= 0xEF; t |= (byte)(Cart->Emu->SeventyTwoPinConnector[68] ? 0x10 : 0); } // PPU D4
-            if (!Cart->Emu->ConnectorPinFloating[67]) { t &= 0xDF; t |= (byte)(Cart->Emu->SeventyTwoPinConnector[67] ? 0x20 : 0); } // PPU D5
-            if (!Cart->Emu->ConnectorPinFloating[66]) { t &= 0xBF; t |= (byte)(Cart->Emu->SeventyTwoPinConnector[66] ? 0x40 : 0); } // PPU D6
-            if (!Cart->Emu->ConnectorPinFloating[65]) { t &= 0x7F; t |= (byte)(Cart->Emu->SeventyTwoPinConnector[65] ? 0x80 : 0); } // PPU D7
-            return t;
+            if (!Cart->Emu->ConnectorPinFloating[29]) { bus &= 0xFE; bus |= (byte)(Cart->Emu->SeventyTwoPinConnector[29] ? 0x01 : 0); } // PPU D0
+            if (!Cart->Emu->ConnectorPinFloating[30]) { bus &= 0xFD; bus |= (byte)(Cart->Emu->SeventyTwoPinConnector[30] ? 0x02 : 0); } // PPU D1
+            if (!Cart->Emu->ConnectorPinFloating[31]) { bus &= 0xFB; bus |= (byte)(Cart->Emu->SeventyTwoPinConnector[31] ? 0x04 : 0); } // PPU D2
+            if (!Cart->Emu->ConnectorPinFloating[32]) { bus &= 0xF7; bus |= (byte)(Cart->Emu->SeventyTwoPinConnector[32] ? 0x08 : 0); } // PPU D3
+            if (!Cart->Emu->ConnectorPinFloating[68]) { bus &= 0xEF; bus |= (byte)(Cart->Emu->SeventyTwoPinConnector[68] ? 0x10 : 0); } // PPU D4
+            if (!Cart->Emu->ConnectorPinFloating[67]) { bus &= 0xDF; bus |= (byte)(Cart->Emu->SeventyTwoPinConnector[67] ? 0x20 : 0); } // PPU D5
+            if (!Cart->Emu->ConnectorPinFloating[66]) { bus &= 0xBF; bus |= (byte)(Cart->Emu->SeventyTwoPinConnector[66] ? 0x40 : 0); } // PPU D6
+            if (!Cart->Emu->ConnectorPinFloating[65]) { bus &= 0x7F; bus |= (byte)(Cart->Emu->SeventyTwoPinConnector[65] ? 0x80 : 0); } // PPU D7
+            return bus;
         }
 
         void Mapper::Connector_SetUpCPUAddressPins(ushort Address) // the 2A03 bus, not the 6502 bus.
@@ -384,7 +383,7 @@ namespace TriCNES
         }
         void Mapper::Connector_CheckCIRAM()
         {
-            if (!Cart->Emu->ConnectorPinFloating[56]) { Cart->Emu->SeventyTwoPinConnector[56] = !Cart->Emu->SeventyTwoPinConnector[57]; }
+            if (!Cart->Emu->ConnectorPinFloating[56]) { Cart->Emu->SeventyTwoPinConnector[56] = Cart->Emu->SeventyTwoPinConnector[57]; }
             if (!Cart->Emu->ConnectorPinFloating[21]) { Cart->Emu->SeventyTwoPinConnector[21] = Cart->NametableHorizontalMirroring ? Cart->Emu->SeventyTwoPinConnector[61] : Cart->Emu->SeventyTwoPinConnector[62]; }
         }
         void Mapper::Connector_IRQPin(bool t)

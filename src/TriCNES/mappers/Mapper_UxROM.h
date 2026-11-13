@@ -9,7 +9,7 @@ namespace TriCNES
         byte Mapper_2_BankSelect = 0;
         void FetchCPU() override
         {
-            if ((Cart->Emu->ConnectorPinFloating[0] && Cart->Emu->ConnectorPinFloating[75]) || Cart->Emu->ConnectorPinFloating[35]) { return; } // If the cartridge is disconnected from power or ground, it cannot do anything.
+            if ((Cart->Emu->ConnectorPinFloating[0] && Cart->Emu->ConnectorPinFloating[71]) || Cart->Emu->ConnectorPinFloating[35]) { return; } // If the cartridge is disconnected from power or ground, it cannot do anything.
             Connector_ReadCPUAddressPins();
 
             if (CPU_AddressIn >= 0x8000)

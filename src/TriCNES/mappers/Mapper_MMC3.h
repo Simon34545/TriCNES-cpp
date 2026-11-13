@@ -22,9 +22,10 @@ namespace TriCNES
         bool Mapper_4_NametableMirroring = false; // MMC3 has it's own way of controlling how the nametables are mirrored.
         byte Mapper_4_PRGRAMProtect = 0;
         byte Mapper_4_M2Filter = 0;
+        byte Mapper_4_PPUA12 = 0;
         void FetchCPU() override
         {
-            if ((Cart->Emu->ConnectorPinFloating[0] && Cart->Emu->ConnectorPinFloating[75]) || Cart->Emu->ConnectorPinFloating[35]) { return; } // If the cartridge is disconnected from power or ground, it cannot do anything.
+            if ((Cart->Emu->ConnectorPinFloating[0] && Cart->Emu->ConnectorPinFloating[71]) || Cart->Emu->ConnectorPinFloating[35]) { return; } // If the cartridge is disconnected from power or ground, it cannot do anything.
             Connector_ReadCPUAddressPins();
 
             if (CPU_AddressIn >= 0xE000) // This bank is fixed the the final PRG bank of the ROM
@@ -294,11 +295,11 @@ namespace TriCNES
         {
             if (Cart->AlternativeNametableArrangement)
             {
-                if (!Cart->Emu->ConnectorPinFloating[56]) { Cart->Emu->SeventyTwoPinConnector[56] = !Cart->Emu->SeventyTwoPinConnector[57] && !Cart->Emu->SeventyTwoPinConnector[61]; }
+                if (!Cart->Emu->ConnectorPinFloating[56]) { Cart->Emu->SeventyTwoPinConnector[56] = Cart->Emu->SeventyTwoPinConnector[57] || Cart->Emu->SeventyTwoPinConnector[61]; }
             }
             else
             {
-                if (!Cart->Emu->ConnectorPinFloating[56]) { Cart->Emu->SeventyTwoPinConnector[56] = !Cart->Emu->SeventyTwoPinConnector[57]; }
+                if (!Cart->Emu->ConnectorPinFloating[56]) { Cart->Emu->SeventyTwoPinConnector[56] = Cart->Emu->SeventyTwoPinConnector[57]; }
             }
 
             if (Mapper_4_NametableMirroring) //horizontal
@@ -358,6 +359,7 @@ namespace TriCNES
             State.push_back((byte)(Mapper_4_NametableMirroring ? 1 : 0));
             State.push_back(Mapper_4_PRGRAMProtect);
             State.push_back(Mapper_4_M2Filter);
+            State.push_back((byte)(Mapper_4_PPUA12 ? 1 : 0));
             return State;
         }
         void LoadMapperRegisters(std::vector<byte> State, int startIndex/*, int &exitIndex*/) override
@@ -388,12 +390,14 @@ namespace TriCNES
             Mapper_4_NametableMirroring = (State[p++] & 1) == 1;
             Mapper_4_PRGRAMProtect = State[p++];
             Mapper_4_M2Filter = State[p++];
+            Mapper_4_PPUA12 = (State[p++] & 1) == 1;
             // exitIndex = p;
         }
         void PPUClock() override
         {
+            Connector_SetUpPPUAddressPins();
             // if bit 12 of the ppu address bus (A12) changes:
-            if (!Cart->Emu->PPU_A12_Prev && ((Cart->Emu->PPU_AddressBus & 0b0001000000000000) != 0) && Mapper_4_M2Filter == 3)
+            if (!Mapper_4_PPUA12 && Cart->Emu->SeventyTwoPinConnector[63] && Mapper_4_M2Filter == 3)
             {
                 if (Mapper_4_ReloadIRQCounter)
                 {
@@ -437,9 +441,11 @@ namespace TriCNES
             {
                 Mapper_4_M2Filter = 0;
             }
+            Mapper_4_PPUA12 = Cart->Emu->SeventyTwoPinConnector[63];
         }
         void CPUClockRise() override
         {
+            if (Cart->Emu->ConnectorPinFloating[37]) { return; } // If the M2 pin is disconnected, this step doesn't work.
             if ((Cart->Emu->PPU_AddressBus & 0b0001000000000000) == 0)
             {
                 if (Mapper_4_M2Filter < 3)
