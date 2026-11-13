@@ -82,7 +82,8 @@ namespace TriCNES
         virtual void FetchPRG(ushort Address, bool Observe);
         virtual void StorePRG(ushort Address, byte Input);
         virtual byte FetchCHR(ushort Address, bool Observe);
-        virtual byte FetchPPU();
+        virtual void FetchPPU();
+        virtual byte FetchNametable();
         virtual ushort MirrorNametable(ushort Address);
         virtual std::vector<byte> SaveMapperRegisters();
         virtual void LoadMapperRegisters(std::vector<byte> State, int startIndex/*, int &exitIndex*/);
@@ -94,6 +95,16 @@ namespace TriCNES
 
     protected:
         void EndFetchPRG(bool Observe, byte data);
+
+    public:
+        void Connector_SetUpPPUAddressPins();
+        ushort Connector_ReadPPUAddressPins();
+        void Connector_SetUpPPUDataPins(byte t);
+        byte Connector_ReadPPUDataPins();
+        void Connector_SetUpCPUAddressPins(ushort Address); // the 2A03 bus, not the 6502 bus.
+        ushort Connector_ReadCPUAddressPins();
+        void Connector_SetUpCPUDataPins(byte t);
+        byte Connector_ReadCPUDataPins();
     };
 
     class DiskDrive
@@ -230,6 +241,89 @@ namespace TriCNES
         byte CPUClock = 0;    // Counts down from 12. When it's 0, a CPU cycle occurs.
         byte MasterClock = 0; // Counts up every master clock cycle. Resets at 24.
 
+        bool* SeventyTwoPinConnector; // The 72 pin connector.
+        /* The actual pinout is 1-indexed, but I don't care, I'm zero-indexing this lad.
+         * Key:
+         *     -- Power and Ground
+         *     -> From console to cartridge
+         *     <- From cartridge to console
+         *     <> I/O between both cartridge and console.
+         *
+         * 00 -- GND
+         * 01 -> CPU A11
+         * 02 -> CPU A10
+         * 03 -> CPU A9
+         * 04 -> CPU A8
+         * 05 -> CPU A7
+         * 06 -> CPU A6
+         * 07 -> CPU A5
+         * 08 -> CPU A4
+         * 09 -> CPU A3
+         * 10 -> CPU A2
+         * 11 -> CPU A1
+         * 12 -> CPU A0
+         * 13 -> CPU R/W
+         * 14 <- /IRQ
+         * 15    EXP 0 (unused)
+         * 16    EXP 1 (unused)
+         * 17    EXP 2 (unused)
+         * 18    EXP 3 (unused)
+         * 19    EXP 4 (unused)
+         * 20 -> PPU /RD
+         * 21 <- CIRAM A10
+         * 22 -> PPU A6
+         * 23 -> PPU A5
+         * 24 -> PPU A4
+         * 25 -> PPU A3
+         * 26 -> PPU A2
+         * 27 -> PPU A1
+         * 28 -> PPU A0
+         * 29 <> PPU D0
+         * 30 <> PPU D1
+         * 31 <> PPU D2
+         * 32 <> PPU D3
+         * 33 -> CIC toPak
+         * 34 <- CIC toMB
+         * 35 -- +5V
+         * 36 -> System CLK
+         * 37 -> M2
+         * 38 -> CPU A12
+         * 39 -> CPU A13
+         * 40 -> CPU A14
+         * 41 <> CPU D7
+         * 42 <> CPU D6
+         * 43 <> CPU D5
+         * 44 <> CPU D4
+         * 45 <> CPU D3
+         * 46 <> CPU D2
+         * 47 <> CPU D1
+         * 48 <> CPU D0
+         * 49 -> /ROMSEL
+         * 50    EXP 9 (unused)
+         * 51    EXP 8 (unused)
+         * 52    EXP 7 (unused)
+         * 53    EXP 6 (unused)
+         * 54    EXP 5 (unused)
+         * 55 -> PPU /WR
+         * 56 <- CIRAM /CE
+         * 57 -> PPU /A13
+         * 58 -> PPU A7
+         * 59 -> PPU A8
+         * 60 -> PPU A9
+         * 61 -> PPU A11 (Not a typo, A11 and A10 are counterintuitively arranged)
+         * 62 -> PPU A10 (Not a typo, A11 and A10 are counterintuitively arranged)
+         * 63 -> PPU A12
+         * 64 -> PPU A13
+         * 65 <> PPU D7
+         * 66 <> PPU D6
+         * 67 <> PPU D5
+         * 68 <> PPU D4
+         * 69 -> CIC +RST
+         * 70 -> CIC CLK
+         * 71 -- GND
+         *
+         */
+
         byte APUAlignment = 0; // at power on or reset, is this a get/put, and how long until the DMC DMA?
 
         bool APU_PutCycle = false; // The APU needs to know if this is a "get" or "put" cycle.
@@ -350,12 +444,14 @@ namespace TriCNES
             X = 0;
             Y = 0;
             VRAM = new byte[0x800];
-            OAM = new byte[0x100]();
+            OAM = new byte[0x100];
             OAM2 = new byte[32];
             for (int oam2_init = 0; oam2_init < 32; oam2_init++)
             {
                 OAM2[oam2_init] = 0xFF;
             }
+
+            SeventyTwoPinConnector = new bool[72];
 
             // set up RAM and PPU RAM Pattern
             int i = 0;
@@ -1668,12 +1764,26 @@ namespace TriCNES
 
         byte FetchVideoMemory()
         {
-            if (Cart->Emu->CopyV)
+            Cart->MapperChip->Connector_SetUpPPUAddressPins();
+
+            byte t = 0;
+
+            if (Cart->Emu->PPU_AddressBus >= 0x2000)
             {
-                Cart->Emu->PPU_AddressBus = Cart->Emu->PPU_v;
+                // We're reading from on-console VRAM, not the cartridge.
+                t = Cart->MapperChip->FetchNametable();
+            }
+            else
+            {
+                // We're reading from the cartridge.
+                Cart->MapperChip->FetchPPU();
+                t = Cart->MapperChip->Connector_ReadPPUDataPins();
             }
 
-            return Cart->MapperChip->FetchPPU();
+            Cart->Emu->PPU_AddressBus &= 0xFF00;
+            Cart->Emu->PPU_AddressBus |= t;
+
+            return t;
         }
 
         bool PPUActiveForShiftRegisterUpdate;
@@ -3613,6 +3723,7 @@ namespace TriCNES
                     break;
                 case 1:
                     // fetch byte from Nametable
+                    PPU_PatternAddressRegister_NT = (ushort)(0x2000 + (PPU_v & 0x0FFF)); // this happens again.
                     PPU_AddressBus = (ushort)((PPU_PatternAddressRegister_NT & 0xFF00) | PPU_OctalLatch);
                     PPU_RenderTemp = FetchVideoMemory();
                     PPU_Commit_NametableFetch = true;
@@ -3624,6 +3735,7 @@ namespace TriCNES
                     break;
                 case 3:
                     // fetch attribute byte from attribute table
+                    PPU_PatternAddressRegister_AT = (ushort)(0x23C0 | (PPU_v & 0x0C00) | ((PPU_v >> 4) & 0x38) | ((PPU_v >> 2) & 0x07)); // this happens again.
                     PPU_AddressBus = (ushort)((PPU_PatternAddressRegister_AT & 0xFF00) | PPU_OctalLatch);
                     PPU_RenderTemp = FetchVideoMemory();
                     PPU_Commit_AttributeFetch = true;
@@ -4400,7 +4512,7 @@ namespace TriCNES
                         }
                         break;
 
-                    case 0x04: //DOP ***
+                    case 0x04: //NOP zp ***
                         if (operationCycle == 1)
                         {
                             GetAddressZeroPage();
@@ -4519,7 +4631,7 @@ namespace TriCNES
 
                         break;
 
-                    case 0x0C: //TOP ***
+                    case 0x0C: //NOP Absolute ***
                         switch (operationCycle)
                         {
                             case 1:
@@ -4691,7 +4803,7 @@ namespace TriCNES
                         }
                         break;
 
-                    case 0x14: //DOP ***
+                    case 0x14: //NOP zp ***
                         switch (operationCycle)
                         {
                             case 1:
@@ -4743,7 +4855,7 @@ namespace TriCNES
                         }
                         break;
 
-                    case 0x17: //SLO zp X *** 
+                    case 0x17: //SLO zp, X *** 
                         switch (operationCycle)
                         {
                             case 1:
@@ -4815,7 +4927,7 @@ namespace TriCNES
                         }
                         break;
 
-                    case 0x1C: //TOP ***
+                    case 0x1C: //NOP Absolute ***
                         switch (operationCycle)
                         {
                             case 1:
@@ -5292,7 +5404,7 @@ namespace TriCNES
                         }
                         break;
 
-                    case 0x34: //DOP ***
+                    case 0x34: //NOP zp ***
                         switch (operationCycle)
                         {
                             case 1:
@@ -5416,7 +5528,7 @@ namespace TriCNES
                         }
                         break;
 
-                    case 0x3C: //TOP ***
+                    case 0x3C: //NOP Absolute ***
                         switch (operationCycle)
                         {
                             case 1:
@@ -5597,7 +5709,7 @@ namespace TriCNES
                         }
                         break;
 
-                    case 0x44: //DOP ***
+                    case 0x44: //NOP zp ***
                         switch (operationCycle)
                         {
                             case 1:
@@ -5881,7 +5993,7 @@ namespace TriCNES
                         }
                         break;
 
-                    case 0x54: //DOP ***
+                    case 0x54: //NOP zp ***
                         switch (operationCycle)
                         {
                             case 1:
@@ -5896,7 +6008,7 @@ namespace TriCNES
                         }
                         break;
 
-                    case 0x55: //EOR zp , X
+                    case 0x55: //EOR zp, X
                         switch (operationCycle)
                         {
                             case 1:
@@ -6008,7 +6120,7 @@ namespace TriCNES
                         }
                         break;
 
-                    case 0x5C: //TOP ***
+                    case 0x5C: //NOP Absolute ***
                         switch (operationCycle)
                         {
                             case 1:
@@ -6184,7 +6296,7 @@ namespace TriCNES
                         }
                         break;
 
-                    case 0x64: //DOP ***
+                    case 0x64: //NOP zp ***
                         switch (operationCycle)
                         {
                             case 1:
@@ -6479,7 +6591,7 @@ namespace TriCNES
                         }
                         break;
 
-                    case 0x74: //DOP ***
+                    case 0x74: //NOP zp ***
                         switch (operationCycle)
                         {
                             case 1:
@@ -6494,7 +6606,7 @@ namespace TriCNES
                         }
                         break;
 
-                    case 0x75: //ADC Zp, X
+                    case 0x75: //ADC zp, X
 
                         switch (operationCycle)
                         {
@@ -6605,7 +6717,7 @@ namespace TriCNES
                         }
                         break;
 
-                    case 0x7C: //TOP ***
+                    case 0x7C: //NOP Absolute ***
                         switch (operationCycle)
                         {
                             case 1:
@@ -6680,7 +6792,7 @@ namespace TriCNES
                         }
                         break;
 
-                    case 0x80: //DOP ***
+                    case 0x80: //NOP zp ***
                         PollInterrupts();
                         GetImmediate();
                         CompleteOperation();
@@ -6705,7 +6817,7 @@ namespace TriCNES
                         }
                         break;
 
-                    case 0x82: //DOP ***
+                    case 0x82: //NOP zp ***
                         PollInterrupts();
                         GetImmediate();
                         CompleteOperation();
@@ -6799,7 +6911,7 @@ namespace TriCNES
 
                         break;
 
-                    case 0x89: //DOP ***
+                    case 0x89: //NOP zp ***
                         PollInterrupts();
                         GetImmediate();
                         CompleteOperation();
@@ -7773,7 +7885,7 @@ namespace TriCNES
                         }
                         break;
 
-                    case 0xC2: //DOP ***
+                    case 0xC2: //NOP zp ***
                         PollInterrupts();
                         GetImmediate();
                         CompleteOperation();
@@ -8095,7 +8207,7 @@ namespace TriCNES
                         }
                         break;
 
-                    case 0xD4: //DOP ***
+                    case 0xD4: //NOP zp ***
                         switch (operationCycle)
                         {
                             case 1:
@@ -8223,7 +8335,7 @@ namespace TriCNES
                         }
                         break;
 
-                    case 0xDC: //TOP ***
+                    case 0xDC: //NOP Absolute ***
                         switch (operationCycle)
                         {
                             case 1:
@@ -8324,7 +8436,7 @@ namespace TriCNES
                         }
                         break;
 
-                    case 0xE2: //DOP ***
+                    case 0xE2: //NOP zp ***
                         PollInterrupts();
                         GetImmediate();
                         CompleteOperation();
@@ -8636,7 +8748,7 @@ namespace TriCNES
                         }
                         break;
 
-                    case 0xF4: //DOP ***
+                    case 0xF4: //NOP zp ***
                         switch (operationCycle)
                         {
                             case 1:
@@ -8764,7 +8876,7 @@ namespace TriCNES
                         }
                         break;
 
-                    case 0xFC: //TOP ***
+                    case 0xFC: //NOP Absolute ***
                         switch (operationCycle)
                         {
                             case 1:
@@ -9237,11 +9349,12 @@ namespace TriCNES
 
         void MapperFetch(ushort Address, byte Mapper)
         {
+            Cart->MapperChip->Connector_SetUpCPUAddressPins(Address);
             Cart->MapperChip->FetchPRG(Address, false);
             dataPinsAreNotFloating = Cart->MapperChip->dataPinsAreNotFloating;
             if (dataPinsAreNotFloating)
             {
-                dataBus = Cart->MapperChip->dataBus;
+                dataBus = Cart->MapperChip->Connector_ReadCPUDataPins();
             }
             return;
         }
@@ -9269,11 +9382,13 @@ namespace TriCNES
         bool SyncFM2 = false; // This is set if we're running an FM2 TAS, which (due to FCEUX's very incorrect timing of the first frame after power on) I need to start execution on scanline 240, and prevent the vblank flag from being set.
         void Store(byte Input, ushort Address)
         {
+            Cart->MapperChip->Connector_SetUpCPUAddressPins(Address);
+            Cart->MapperChip->Connector_SetUpCPUDataPins(Input);
             // This is used whenever writing anywhere with the CPU
             if (Address < 0x2000)
             {
                 //guaranteed to be RAM
-
+                // Even still, the address pins on the 72 pin connector get updated.
                 RAM[Address & 0x7FF] = Input;
 
             }
@@ -9709,6 +9824,15 @@ namespace TriCNES
     private:
         void StorePPUData(ushort Address, byte In)
         {
+            Cart->Emu->SeventyTwoPinConnector[29] = (In & 0x01) != 0; // PPU D0
+            Cart->Emu->SeventyTwoPinConnector[30] = (In & 0x02) != 0; // PPU D1
+            Cart->Emu->SeventyTwoPinConnector[31] = (In & 0x04) != 0; // PPU D2
+            Cart->Emu->SeventyTwoPinConnector[32] = (In & 0x08) != 0; // PPU D3
+            Cart->Emu->SeventyTwoPinConnector[68] = (In & 0x10) != 0; // PPU D4
+            Cart->Emu->SeventyTwoPinConnector[67] = (In & 0x20) != 0; // PPU D5
+            Cart->Emu->SeventyTwoPinConnector[66] = (In & 0x40) != 0; // PPU D6
+            Cart->Emu->SeventyTwoPinConnector[65] = (In & 0x80) != 0; // PPU D7
+
             // writing to the PPU's VRAM.
             // first, check if the address has any mirroring going on:
             Address = PPUAddressWithMirroring(Address);
@@ -9735,7 +9859,6 @@ namespace TriCNES
                     }
                 }
                 VRAM[Address & 0x7FF] = In;
-
             }
         }
 

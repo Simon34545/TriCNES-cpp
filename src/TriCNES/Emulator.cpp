@@ -73,6 +73,7 @@ namespace TriCNES
                 default:
                 case 0: MapperChip = new Mapper_NROM(); break;
                 case 1: MapperChip = new Mapper_MMC1(); break;
+                case 71:
                 case 2: MapperChip = new Mapper_UxROM(); break;
                 case 3: MapperChip = new Mapper_CNROM(); break;
                 case 4: MapperChip = new Mapper_MMC3(); break;
@@ -117,6 +118,10 @@ namespace TriCNES
 
         void Mapper::FetchPRG(ushort Address, bool Observe)
         {
+            if (!Observe)
+            {
+                Address = Connector_ReadCPUAddressPins();
+            }
             bool notFloating = false;
             byte data = 0;
             if (!Observe) { dataPinsAreNotFloating = false; } else { observedDataPinsAreNotFloating = false; }
@@ -142,33 +147,31 @@ namespace TriCNES
         {
             return Cart->CHRROM[Address & 0x1FFF];
         }
-        byte Mapper::FetchPPU()
+        void Mapper::FetchPPU()
         {
-            // This will always use the upper 8 bits of the address bus | the octal latch. This replaces the lower 8 bits of the address bus.
+            // This will always use the upper 8 bits of the address bus | the octal latch. This Octal Latch replaces the lower 8 bits of the address bus.
+            ushort Address = Connector_ReadPPUAddressPins();
+
+            byte t = 0;
+
+            if (Cart->UsingCHRRAM)
+            {
+                t = Cart->CHRRAM[Address];
+            }
+            else
+            {
+                //Pattern Table
+                t = Cart->MapperChip->FetchCHR(Address, false);
+            }
+            
+            Connector_SetUpPPUDataPins(t);
+        }
+        byte Mapper::FetchNametable()
+        {
             ushort Address = (ushort)((Cart->Emu->PPU_AddressBus & 0x3F00) | Cart->Emu->PPU_OctalLatch);
-            bool CIRAM = Address >= 0x2000;
-            if (!CIRAM)
-            {
-                if (Cart->UsingCHRRAM)
-                {
-                    Cart->Emu->PPU_AddressBus &= 0xFF00;
-                    Cart->Emu->PPU_AddressBus |= Cart->CHRRAM[Address];
-                }
-                else
-                {
-                    //Pattern Table
-                    Cart->Emu->PPU_AddressBus &= 0xFF00;
-                    Cart->Emu->PPU_AddressBus |= Cart->MapperChip->FetchCHR(Address, false);
-                }
-            }
-            else // if the VRAM address is >= $2000, we need to consider nametable mirroring.
-            {
-                Address = MirrorNametable(Address);
-                Address &= 0x7FF;
-                Cart->Emu->PPU_AddressBus &= 0xFF00;
-                Cart->Emu->PPU_AddressBus |= Cart->Emu->VRAM[Address];                
-            }
-            return (byte)Cart->Emu->PPU_AddressBus;
+            Address = Cart->MapperChip->MirrorNametable(Address);
+            Address &= 0x7FF;
+            return Cart->Emu->VRAM[Address];
         }
         ushort Mapper::MirrorNametable(ushort Address)
         {
@@ -218,13 +221,139 @@ namespace TriCNES
             if (!Observe)
             {
                 dataPinsAreNotFloating = true;
-                dataBus = data;
+                Connector_SetUpCPUDataPins(data);
             }
             else
             {
                 observedDataPinsAreNotFloating = true;
                 observedDataBus = data;
             }
+        }
+
+        void Mapper::Connector_SetUpPPUAddressPins()
+        {
+            Cart->Emu->SeventyTwoPinConnector[28] = (Cart->Emu->PPU_OctalLatch & 0x01) != 0; // PPU A0
+            Cart->Emu->SeventyTwoPinConnector[27] = (Cart->Emu->PPU_OctalLatch & 0x02) != 0; // PPU A1
+            Cart->Emu->SeventyTwoPinConnector[26] = (Cart->Emu->PPU_OctalLatch & 0x04) != 0; // PPU A2
+            Cart->Emu->SeventyTwoPinConnector[25] = (Cart->Emu->PPU_OctalLatch & 0x08) != 0; // PPU A3
+            Cart->Emu->SeventyTwoPinConnector[24] = (Cart->Emu->PPU_OctalLatch & 0x10) != 0; // PPU A4
+            Cart->Emu->SeventyTwoPinConnector[23] = (Cart->Emu->PPU_OctalLatch & 0x20) != 0; // PPU A5
+            Cart->Emu->SeventyTwoPinConnector[22] = (Cart->Emu->PPU_OctalLatch & 0x40) != 0; // PPU A6
+            Cart->Emu->SeventyTwoPinConnector[58] = (Cart->Emu->PPU_OctalLatch & 0x80) != 0; // PPU A7
+            Cart->Emu->SeventyTwoPinConnector[59] = (Cart->Emu->PPU_AddressBus & 0x0100) != 0; // PPU A8
+            Cart->Emu->SeventyTwoPinConnector[60] = (Cart->Emu->PPU_AddressBus & 0x0200) != 0; // PPU A9
+            Cart->Emu->SeventyTwoPinConnector[62] = (Cart->Emu->PPU_AddressBus & 0x0400) != 0; // PPU A10
+            Cart->Emu->SeventyTwoPinConnector[61] = (Cart->Emu->PPU_AddressBus & 0x0800) != 0; // PPU A11
+            Cart->Emu->SeventyTwoPinConnector[63] = (Cart->Emu->PPU_AddressBus & 0x1000) != 0; // PPU A12
+            Cart->Emu->SeventyTwoPinConnector[64] = (Cart->Emu->PPU_AddressBus & 0x2000) != 0; // PPU A13
+        }
+        ushort Mapper::Connector_ReadPPUAddressPins()
+        {
+            ushort Address = 0;
+            Address |= (ushort)(Cart->Emu->SeventyTwoPinConnector[64] ? 0x2000 : 0); // PPU A13
+            Address |= (ushort)(Cart->Emu->SeventyTwoPinConnector[63] ? 0x1000 : 0); // PPU A12
+            Address |= (ushort)(Cart->Emu->SeventyTwoPinConnector[61] ? 0x0800 : 0); // PPU A11
+            Address |= (ushort)(Cart->Emu->SeventyTwoPinConnector[62] ? 0x0400 : 0); // PPU A10
+            Address |= (ushort)(Cart->Emu->SeventyTwoPinConnector[60] ? 0x0200 : 0); // PPU A9
+            Address |= (ushort)(Cart->Emu->SeventyTwoPinConnector[59] ? 0x0100 : 0); // PPU A8
+            Address |= (ushort)(Cart->Emu->SeventyTwoPinConnector[58] ? 0x0080 : 0); // PPU A7
+            Address |= (ushort)(Cart->Emu->SeventyTwoPinConnector[22] ? 0x0040 : 0); // PPU A6
+            Address |= (ushort)(Cart->Emu->SeventyTwoPinConnector[23] ? 0x0020 : 0); // PPU A5
+            Address |= (ushort)(Cart->Emu->SeventyTwoPinConnector[24] ? 0x0010 : 0); // PPU A4
+            Address |= (ushort)(Cart->Emu->SeventyTwoPinConnector[25] ? 0x0008 : 0); // PPU A3
+            Address |= (ushort)(Cart->Emu->SeventyTwoPinConnector[26] ? 0x0004 : 0); // PPU A2
+            Address |= (ushort)(Cart->Emu->SeventyTwoPinConnector[27] ? 0x0002 : 0); // PPU A1
+            Address |= (ushort)(Cart->Emu->SeventyTwoPinConnector[28] ? 0x0001 : 0); // PPU A0
+            return Address;
+        }
+        void Mapper::Connector_SetUpPPUDataPins(byte t)
+        {
+            Cart->Emu->SeventyTwoPinConnector[29] = (t & 0x01) != 0; // PPU D0
+            Cart->Emu->SeventyTwoPinConnector[30] = (t & 0x02) != 0; // PPU D1
+            Cart->Emu->SeventyTwoPinConnector[31] = (t & 0x04) != 0; // PPU D2
+            Cart->Emu->SeventyTwoPinConnector[32] = (t & 0x08) != 0; // PPU D3
+            Cart->Emu->SeventyTwoPinConnector[68] = (t & 0x10) != 0; // PPU D4
+            Cart->Emu->SeventyTwoPinConnector[67] = (t & 0x20) != 0; // PPU D5
+            Cart->Emu->SeventyTwoPinConnector[66] = (t & 0x40) != 0; // PPU D6
+            Cart->Emu->SeventyTwoPinConnector[65] = (t & 0x80) != 0; // PPU D7
+        }
+        byte Mapper::Connector_ReadPPUDataPins()
+        {
+            byte t = 0;
+            t |= (byte)(Cart->Emu->SeventyTwoPinConnector[29] ? 0x01 : 0); // PPU D0
+            t |= (byte)(Cart->Emu->SeventyTwoPinConnector[30] ? 0x02 : 0); // PPU D1
+            t |= (byte)(Cart->Emu->SeventyTwoPinConnector[31] ? 0x04 : 0); // PPU D2
+            t |= (byte)(Cart->Emu->SeventyTwoPinConnector[32] ? 0x08 : 0); // PPU D3
+            t |= (byte)(Cart->Emu->SeventyTwoPinConnector[68] ? 0x10 : 0); // PPU D4
+            t |= (byte)(Cart->Emu->SeventyTwoPinConnector[67] ? 0x20 : 0); // PPU D5
+            t |= (byte)(Cart->Emu->SeventyTwoPinConnector[66] ? 0x40 : 0); // PPU D6
+            t |= (byte)(Cart->Emu->SeventyTwoPinConnector[65] ? 0x80 : 0); // PPU D7
+            return t;
+        }
+
+        void Mapper::Connector_SetUpCPUAddressPins(ushort Address) // the 2A03 bus, not the 6502 bus.
+        {
+            Cart->Emu->SeventyTwoPinConnector[12] = (Address & 0x01) != 0; // CPU A0
+            Cart->Emu->SeventyTwoPinConnector[11] = (Address & 0x02) != 0; // CPU A1
+            Cart->Emu->SeventyTwoPinConnector[10] = (Address & 0x04) != 0; // CPU A2
+            Cart->Emu->SeventyTwoPinConnector[9] = (Address & 0x08) != 0; // CPU A3
+            Cart->Emu->SeventyTwoPinConnector[8] = (Address & 0x10) != 0; // CPU A4
+            Cart->Emu->SeventyTwoPinConnector[7] = (Address & 0x20) != 0; // CPU A5
+            Cart->Emu->SeventyTwoPinConnector[6] = (Address & 0x40) != 0; // CPU A6
+            Cart->Emu->SeventyTwoPinConnector[5] = (Address & 0x80) != 0; // CPU A7
+            Cart->Emu->SeventyTwoPinConnector[4] = (Address & 0x0100) != 0; // CPU A8
+            Cart->Emu->SeventyTwoPinConnector[3] = (Address & 0x0200) != 0; // CPU A9
+            Cart->Emu->SeventyTwoPinConnector[2] = (Address & 0x0400) != 0; // CPU A10
+            Cart->Emu->SeventyTwoPinConnector[1] = (Address & 0x0800) != 0; // CPU A11
+            Cart->Emu->SeventyTwoPinConnector[38] = (Address & 0x1000) != 0; // CPU A12
+            Cart->Emu->SeventyTwoPinConnector[39] = (Address & 0x2000) != 0; // CPU A13
+            Cart->Emu->SeventyTwoPinConnector[40] = (Address & 0x4000) != 0; // CPU A14
+            Cart->Emu->SeventyTwoPinConnector[49] = (Address & 0x8000) != 0; // CPU A15
+        }
+        ushort Mapper::Connector_ReadCPUAddressPins()
+        {
+            ushort Address = 0;
+            Address |= (ushort)(Cart->Emu->SeventyTwoPinConnector[49] ? 0x8000 : 0); // CPU A0
+            Address |= (ushort)(Cart->Emu->SeventyTwoPinConnector[40] ? 0x4000 : 0); // CPU A1
+            Address |= (ushort)(Cart->Emu->SeventyTwoPinConnector[39] ? 0x2000 : 0); // CPU A2
+            Address |= (ushort)(Cart->Emu->SeventyTwoPinConnector[38] ? 0x1000 : 0); // CPU A3
+            Address |= (ushort)(Cart->Emu->SeventyTwoPinConnector[1] ? 0x0800 : 0); // CPU A4
+            Address |= (ushort)(Cart->Emu->SeventyTwoPinConnector[2] ? 0x0400 : 0); // CPU A5
+            Address |= (ushort)(Cart->Emu->SeventyTwoPinConnector[3] ? 0x0200 : 0); // CPU A6
+            Address |= (ushort)(Cart->Emu->SeventyTwoPinConnector[4] ? 0x0100 : 0); // CPU A7
+            Address |= (ushort)(Cart->Emu->SeventyTwoPinConnector[5] ? 0x0080 : 0); // CPU A8
+            Address |= (ushort)(Cart->Emu->SeventyTwoPinConnector[6] ? 0x0040 : 0); // CPU A9
+            Address |= (ushort)(Cart->Emu->SeventyTwoPinConnector[7] ? 0x0020 : 0); // CPU A10
+            Address |= (ushort)(Cart->Emu->SeventyTwoPinConnector[8] ? 0x0010 : 0); // CPU A11
+            Address |= (ushort)(Cart->Emu->SeventyTwoPinConnector[9] ? 0x0008 : 0); // CPU A12
+            Address |= (ushort)(Cart->Emu->SeventyTwoPinConnector[10] ? 0x0004 : 0); // CPU A13
+            Address |= (ushort)(Cart->Emu->SeventyTwoPinConnector[11] ? 0x0002 : 0); // CPU A14
+            Address |= (ushort)(Cart->Emu->SeventyTwoPinConnector[12] ? 0x0001 : 0); // CPU A15
+            return Address;
+        }
+        void Mapper::Connector_SetUpCPUDataPins(byte t)
+        {
+            Cart->Emu->SeventyTwoPinConnector[48] = (t & 0x01) != 0; // PPU D0
+            Cart->Emu->SeventyTwoPinConnector[47] = (t & 0x02) != 0; // PPU D1
+            Cart->Emu->SeventyTwoPinConnector[46] = (t & 0x04) != 0; // PPU D2
+            Cart->Emu->SeventyTwoPinConnector[45] = (t & 0x08) != 0; // PPU D3
+            Cart->Emu->SeventyTwoPinConnector[44] = (t & 0x10) != 0; // PPU D4
+            Cart->Emu->SeventyTwoPinConnector[43] = (t & 0x20) != 0; // PPU D5
+            Cart->Emu->SeventyTwoPinConnector[42] = (t & 0x40) != 0; // PPU D6
+            Cart->Emu->SeventyTwoPinConnector[41] = (t & 0x80) != 0; // PPU D7
+        }
+        byte Mapper::Connector_ReadCPUDataPins()
+        {
+            byte t = 0;
+            t |= (byte)(Cart->Emu->SeventyTwoPinConnector[48] ? 0x01 : 0); // PPU D0
+            t |= (byte)(Cart->Emu->SeventyTwoPinConnector[47] ? 0x02 : 0); // PPU D1
+            t |= (byte)(Cart->Emu->SeventyTwoPinConnector[46] ? 0x04 : 0); // PPU D2
+            t |= (byte)(Cart->Emu->SeventyTwoPinConnector[45] ? 0x08 : 0); // PPU D3
+            t |= (byte)(Cart->Emu->SeventyTwoPinConnector[44] ? 0x10 : 0); // PPU D4
+            t |= (byte)(Cart->Emu->SeventyTwoPinConnector[43] ? 0x20 : 0); // PPU D5
+            t |= (byte)(Cart->Emu->SeventyTwoPinConnector[42] ? 0x40 : 0); // PPU D6
+            t |= (byte)(Cart->Emu->SeventyTwoPinConnector[41] ? 0x80 : 0); // PPU D7
+            return t;
         }
 
         void DiskDrive::Clock()
