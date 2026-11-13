@@ -1578,7 +1578,7 @@ namespace TriCNES
             PrevPrevPrevDotColor = PrevPrevDotColor; // Drawing a color to the screen has a 3(?) ppu cycle delay between deciding the color, and drawing it.
             PrevPrevDotColor = PrevDotColor;
             PrevDotColor = DotColor; // These variables here just record the color, and swap them through these variables so it can be used 3 cycles after it was chosen.
-            if ((PPU_Scanline < 240 || PPU_Scanline == 261))// if this is the pre-render line, or any line before vblank
+            if ((PPU_Scanline < 240 || PPU_Scanline == 261) || (PPU_Scanline == 240 && PPU_Dot == 0))// if this is the pre-render line, or any line before vblank, or dot 0 of scanline 240
             {
                 if ((PPU_Dot >= 1 && PPU_Dot <= 256) || (PPU_Dot >= 321 && PPU_Dot <= 336)) // if this is a visible pixel, or preparing the start of next scanline
                 {
@@ -3713,7 +3713,10 @@ namespace TriCNES
             {
                 PPU_CheckPAR();
                 PPU_PatternAddressRegister_CHR &= 0b1111111110111;
-                PPU_AddressBus = PPU_PatternAddressRegister_CHR;
+                if (PPU_Scanline != 261) // This would not occur on the pre-render line.
+                {
+                    PPU_AddressBus = PPU_PatternAddressRegister_CHR;
+                }
             }
             else
             {
