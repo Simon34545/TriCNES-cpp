@@ -83,6 +83,7 @@ namespace TriCNES
         virtual void StorePRG(ushort Address, byte Input);
         virtual byte FetchCHR(ushort Address, bool Observe);
         virtual void FetchPPU();
+        virtual void CheckCIRAM();
         virtual byte FetchNametable();
         virtual ushort MirrorNametable(ushort Address);
         virtual std::vector<byte> SaveMapperRegisters();
@@ -1765,23 +1766,22 @@ namespace TriCNES
         byte FetchVideoMemory()
         {
             Cart->MapperChip->Connector_SetUpPPUAddressPins();
-
+            Cart->MapperChip->CheckCIRAM();
             byte t = 0;
 
-            if (Cart->Emu->PPU_AddressBus >= 0x2000)
+            // Always attempt to read from the cartridge. The data pins would not be updated if reading from the nametable.
+            Cart->MapperChip->FetchPPU();
+            t = Cart->MapperChip->Connector_ReadPPUDataPins();
+
+            if (PPU_AddressBus >= 0x2000 && Cart->Emu->SeventyTwoPinConnector[56])
             {
                 // We're reading from on-console VRAM, not the cartridge.
+                // NOTE: In theory you could trigger bus conflicts with this. I'm currently just assuming the bus is free.
                 t = Cart->MapperChip->FetchNametable();
             }
-            else
-            {
-                // We're reading from the cartridge.
-                Cart->MapperChip->FetchPPU();
-                t = Cart->MapperChip->Connector_ReadPPUDataPins();
-            }
 
-            Cart->Emu->PPU_AddressBus &= 0xFF00;
-            Cart->Emu->PPU_AddressBus |= t;
+            PPU_AddressBus &= 0xFF00;
+            PPU_AddressBus |= t;
 
             return t;
         }

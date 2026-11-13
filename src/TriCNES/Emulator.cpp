@@ -152,19 +152,24 @@ namespace TriCNES
             // This will always use the upper 8 bits of the address bus | the octal latch. This Octal Latch replaces the lower 8 bits of the address bus.
             ushort Address = Connector_ReadPPUAddressPins();
 
-            byte t = 0;
-
-            if (Cart->UsingCHRRAM)
+            byte t = Cart->Emu->PPU_OctalLatch;
+            if (Cart->Emu->SeventyTwoPinConnector[57] && Address < 0x2000) // Addresses $2000 through $3FFF do NOT read from the cartrdige.
             {
-                t = Cart->CHRRAM[Address];
+                if (Cart->UsingCHRRAM)
+                {
+                    t = Cart->CHRRAM[Address];
+                }
+                else
+                {
+                    //Pattern Table
+                    t = Cart->MapperChip->FetchCHR(Address, false);
+                }
             }
-            else
-            {
-                //Pattern Table
-                t = Cart->MapperChip->FetchCHR(Address, false);
-            }
-            
             Connector_SetUpPPUDataPins(t);
+        }
+        void Mapper::CheckCIRAM()
+        { 
+            Cart->Emu->SeventyTwoPinConnector[56] = !Cart->Emu->SeventyTwoPinConnector[57];
         }
         byte Mapper::FetchNametable()
         {
@@ -246,6 +251,7 @@ namespace TriCNES
             Cart->Emu->SeventyTwoPinConnector[61] = (Cart->Emu->PPU_AddressBus & 0x0800) != 0; // PPU A11
             Cart->Emu->SeventyTwoPinConnector[63] = (Cart->Emu->PPU_AddressBus & 0x1000) != 0; // PPU A12
             Cart->Emu->SeventyTwoPinConnector[64] = (Cart->Emu->PPU_AddressBus & 0x2000) != 0; // PPU A13
+            Cart->Emu->SeventyTwoPinConnector[57] = (Cart->Emu->PPU_AddressBus & 0x2000) == 0; // PPU \A13
         }
         ushort Mapper::Connector_ReadPPUAddressPins()
         {
