@@ -144,6 +144,12 @@ namespace TriCNES
         }
         byte Mapper::FetchPPU()
         {
+            // TODO: I think this is correct? I need to look into this more. I added this while looking into the Stein's Gate visual bug.
+            if (Cart->Emu->CopyV)
+            {
+                Cart->Emu->PPU_AddressBus = Cart->Emu->PPU_v;
+            }
+
             // This will always use the upper 8 bits of the address bus | the octal latch. This replaces the lower 8 bits of the address bus.
             ushort Address = (ushort)((Cart->Emu->PPU_AddressBus & 0x3F00) | Cart->Emu->PPU_OctalLatch);
             bool CIRAM = Address >= 0x2000;

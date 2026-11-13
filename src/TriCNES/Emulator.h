@@ -1291,9 +1291,9 @@ namespace TriCNES
         bool IRQ_LevelDetector = false; // If set, it's time to run an IRQ whenever this is detected
         bool NMILine = false; // Set to true if $2000.7 and $2002.7 are both set. This is checked during the second half od a CPU cycle.
         bool IRQLine = false; // Set during phi2 to true if the IRQ level detector is low.
+        bool CopyV = false; // set by writes to $2006. If it occurs on the same dot the scroll values are naturally incremented, some bugs occur.
 
     private:
-        bool CopyV = false; // set by writes to $2006. If it occurs on the same dot the scroll values are naturally incremented, some bugs occur.
         bool SkippedPreRenderDot341 = false;
 
         void _EmulatePPU()
@@ -1302,29 +1302,6 @@ namespace TriCNES
             // When writing to ppu registers, there's a slight delay before resulting action is taken.
             // This delay can vary depending on the CPU/PPU alignment.
 
-            // For instance, after writing to $2006, this delay value will either be 4 or 5.
-            CopyV = false;
-            if (PPU_Update2006Delay > 0)
-            {
-                PPU_Update2006Delay--; // this counts down,
-                if (PPU_Update2006Delay == 0) // and when it reaches zero
-                {
-                    ushort temp_Prev_V = PPU_v;
-                    CopyV = true;
-                    PPU_v = PPU_t; // the PPU_ReadWriteAddress is updated!
-                    PPU_AddressBus = PPU_v; // This value is the same thing.
-                    if ((temp_Prev_V & 0x3FFF) >= 0x3F00 && (PPU_AddressBus & 0x3FFF) < 0x3F00) // Palette corruption check. Are we leaving Palette ram?
-                    {
-                        if ((PPU_Scanline < 240) && PPU_Dot <= 256) // if this dot is visible
-                        {
-                            if ((temp_Prev_V & 0xF) != 0)  // also, Palette corruption only happens if the previous address did not end in a 0
-                            {
-                                PPU_VRegisterChangedOutOfVBlank = true;
-                            }
-                        }
-                    }
-                }
-            }
             // after writing to $2005, there is either a 1 or 2 cycle delay.
             if (PPU_Update2005Delay > 0)
             {
@@ -1469,11 +1446,9 @@ namespace TriCNES
 
             PPUStatus_SpriteOverflow_Delayed = PPUStatus_SpriteOverflow;
 
+            Cart->MapperChip->PPUClock(); // If the mapper chip does something every ppu clock... (See MMC3)
+            PPU_A12_Prev = (PPU_AddressBus & 0b0001000000000000) != 0; // Record the value of the A12. This is needed for MMC3.
 
-            
-            // Right now, I'm only emulating MMC3's IRQ counter in this function.
-            PPU_MapperSpecificFunctions();
-            PPU_A12_Prev = (PPU_AddressBus & 0b0001000000000000) != 0; // Record the value of the A12. This is used in the PPU_MapperSpecificFunctions(), so if this changes between here and next ppu cycle, we'll know.
             if (PPU_OddFrame && (PPU_Mask_ShowBackground || PPU_Mask_ShowSprites))
             {
                 if (PPU_Scanline == 261 && PPU_Dot == 340)
@@ -1489,6 +1464,8 @@ namespace TriCNES
             {
                 SkippedPreRenderDot341 = false; // This variable is used for some esoteric business on dot 1 of scanline 0.
             }
+
+
             // Okay, now that we're updated all those flags, let's render stuff to the screen!
 
             // let's establish the order of operations.
@@ -1506,6 +1483,30 @@ namespace TriCNES
             }
 
             PPU_DATA_StateMachine();
+
+            // TODO: Does this use a state machine like $2007?
+            CopyV = false;
+            if (PPU_Update2006Delay > 0)
+            {
+                PPU_Update2006Delay--; // this counts down,
+                if (PPU_Update2006Delay == 0) // and when it reaches zero
+                {
+                    ushort temp_Prev_V = PPU_v;
+                    CopyV = true;
+                    PPU_v = PPU_t; // the PPU_ReadWriteAddress is updated!
+                    PPU_AddressBus = PPU_v; // This value is the same thing.
+                    if ((temp_Prev_V & 0x3FFF) >= 0x3F00 && (PPU_AddressBus & 0x3FFF) < 0x3F00) // Palette corruption check. Are we leaving Palette ram?
+                    {
+                        if ((PPU_Scanline < 240) && PPU_Dot <= 256) // if this dot is visible
+                        {
+                            if ((temp_Prev_V & 0xF) != 0)  // also, Palette corruption only happens if the previous address did not end in a 0
+                            {
+                                PPU_VRegisterChangedOutOfVBlank = true;
+                            }
+                        }
+                    }
+                }
+            }
 
             if ((PPU_Scanline < 240 || PPU_Scanline == 261))// if this is the pre-render line, or any line before vblank
             {
@@ -1796,7 +1797,7 @@ namespace TriCNES
 
             if ((PPU_2007_ReadALE || PPU_2007_WriteALE))
             {
-                if (!PPU_READ)
+                if (!PPU_READ) // TODO: this if statement doesn't seem to change the results of the 2007 stress test in any way.
                 {
                     PPU_AddressBus = PPU_v;
                     PPU_OctalLatch = (byte)PPU_AddressBus;
@@ -2459,11 +2460,6 @@ namespace TriCNES
                 }
                 i++;
             }
-        }
-
-        void PPU_MapperSpecificFunctions()
-        {
-            Cart->MapperChip->PPUClock(); // If the mapper chip does something every ppu clock... (See MMC3)
         }
 
         // If OAM corruption is pending, it occurs on the first rendered dot.
