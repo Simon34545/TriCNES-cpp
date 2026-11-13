@@ -344,7 +344,29 @@ MENU_CALLBACK(syncSettings)
 {
     SDL_LockAudioStream(stream);
 
+    emulator.TriCNESCPP_HWACCEL = GetMenuItemChecked(settings, BTN_NTSCGPU);
+
     emulator.PPU_ShowRawNTSCSignal = GetMenuItemChecked(settings, BTN_NTSCRAW);
+
+    if (emulator.TriCNESCPP_HWACCEL && computePipeline == NULL)
+    {
+        device = SDL_CreateGPUDevice(SDL_GPU_SHADERFORMAT_SPIRV, true, NULL);
+        SDL_ClaimWindowForGPUDevice(device, window);
+
+        computePipeline = createComputePipeline(device, "cs.spv", 0, 0, 1, 64, 16, 1);
+
+        samples = createTexture(device, 256 * 8, 240, SDL_GPU_TEXTUREFORMAT_R32G32B32A32_FLOAT, SDL_GPU_TEXTUREUSAGE_COMPUTE_STORAGE_SIMULTANEOUS_READ_WRITE);
+
+        SDL_GPUTransferBufferCreateInfo transferInfo0{};
+        transferInfo0.size = (Uint32)(sizeof(float) * 4 * 256 * 8 * 240);
+        transferInfo0.usage = SDL_GPU_TRANSFERBUFFERUSAGE_DOWNLOAD;
+        textureDownloadTransferBuffer = SDL_CreateGPUTransferBuffer(device, &transferInfo0);
+
+        SDL_GPUTransferBufferCreateInfo transferInfo1{};
+        transferInfo1.size = (Uint32)(sizeof(float) * 4 * 256 * 8 * 240);
+        transferInfo1.usage = SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD;
+        textureUploadTransferBuffer = SDL_CreateGPUTransferBuffer(device, &transferInfo1);
+    }
 
     speed = speeds[GetDropdownSelectedIndex(settingsSpeedSelect)];
 
@@ -360,7 +382,7 @@ MENU_CALLBACK(syncSettings)
 
     if (scale == 0)
     {
-        width *= emulator.PPU_DecodeSignal ? 1 : 8;
+        width *= 8;
         height *= 7;
     }
     else
@@ -400,6 +422,11 @@ MENU_CALLBACK(setRaw)
     syncSettings(NULL);
 }
 
+MENU_CALLBACK(setGPU)
+{
+    SetMenuItemChecked(settings, BTN_NTSCGPU, !GetMenuItemChecked(settings, BTN_NTSCGPU));
+    syncSettings(NULL);
+}
 
 MENU_CALLBACK(setPPU)
 {
@@ -541,6 +568,7 @@ void InitMenuBar()
     AddMenuItem(settings, BTN_VSYNC, "Picture VSync", setVSync);
     AddMenuItem(settings, BTN_KSYNC, "Input VSync", setKSync);
     AddMenuItem(settings, BTN_NTSCRAW, "Show Raw NTSC Signal", setRaw);
+    // AddMenuItem(settings, BTN_NTSCGPU, "Hardware Accelerated NTSC Decoding", setGPU);
 
     MENU settingsSpeed = AddSubMenu(settings, "Emulation Speed");
     AddMenuItem(settingsSpeed, BTN_SPEED0, "1%");

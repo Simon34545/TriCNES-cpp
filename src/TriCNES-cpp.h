@@ -120,5 +120,14 @@ MENU_CALLBACK(syncSettings);
 MENU_CALLBACK(disk);
 MENU_CALLBACK(dummy_handler) {};
 
+
+#include "gpu.h"
+
+SDL_GPUDevice* device = NULL;
+SDL_GPUComputePipeline* computePipeline = NULL;
+SDL_GPUTexture* samples;
+SDL_GPUTransferBuffer* textureDownloadTransferBuffer;
+SDL_GPUTransferBuffer* textureUploadTransferBuffer;
+
 #include "tas.h"
 #include "menu.h"

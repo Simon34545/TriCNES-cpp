@@ -20,23 +20,116 @@ static void frame()
     t0 = t1;
 }
 
+static void gpuRender()
+{
+    SDL_GPUCommandBuffer* commandBuffer = SDL_AcquireGPUCommandBuffer(device);
+
+    float* textureData = (float*)SDL_MapGPUTransferBuffer(device, textureUploadTransferBuffer, false);
+
+    memcpy(textureData, emulator.TriCNESCPP_HWACCEL_NTSCScreen, 256 * 8 * 240 * 4 * sizeof(float));
+
+    SDL_UnmapGPUTransferBuffer(device, textureUploadTransferBuffer);
+
+    SDL_GPUStorageTextureReadWriteBinding textureBinding;
+    textureBinding.texture = samples;
+    textureBinding.mip_level = 0;
+    textureBinding.layer = 0;
+    textureBinding.cycle = false;
+
+    SDL_GPUCopyPass* uploadPass = SDL_BeginGPUCopyPass(commandBuffer);
+
+    SDL_GPUTextureRegion destinationRegion{};
+    destinationRegion.texture = samples;
+    destinationRegion.w = 256 * 8;
+    destinationRegion.h = 240;
+    destinationRegion.d = 1;
+
+    SDL_GPUTextureTransferInfo sourceInfo{};
+    sourceInfo.transfer_buffer = textureUploadTransferBuffer;
+    sourceInfo.offset = 0;
+
+    SDL_UploadToGPUTexture(uploadPass, &sourceInfo, &destinationRegion, false);
+
+    SDL_EndGPUCopyPass(uploadPass);
+
+    SDL_GPUComputePass* computePass = SDL_BeginGPUComputePass(commandBuffer, &textureBinding, 1, NULL, 0);
+
+    SDL_BindGPUComputePipeline(computePass, computePipeline);
+
+    SDL_DispatchGPUCompute(computePass, 256 * 8 / 64, 240 / 16, 1);
+    SDL_EndGPUComputePass(computePass);
+
+    SDL_GPUCopyPass* downloadPass = SDL_BeginGPUCopyPass(commandBuffer);
+
+    SDL_GPUTextureRegion sourceRegion{};
+    sourceRegion.texture = samples;
+    sourceRegion.w = 256 * 8;
+    sourceRegion.h = 240;
+    sourceRegion.d = 1;
+
+    SDL_GPUTextureTransferInfo destinationInfo{};
+    destinationInfo.transfer_buffer = textureDownloadTransferBuffer;
+    destinationInfo.offset = 0;
+
+    SDL_DownloadFromGPUTexture(downloadPass, &sourceRegion, &destinationInfo);
+
+    SDL_EndGPUCopyPass(downloadPass);
+
+    submit(device, commandBuffer);
+
+    textureData = (float*)SDL_MapGPUTransferBuffer(device, textureDownloadTransferBuffer, false);
+
+    for (int i = 0; i < 256 * 8 * 240 * 4; i += 4)
+    {
+        Uint8 r = (Uint8)(255.0 * textureData[i + 0]);
+        Uint8 g = (Uint8)(255.0 * textureData[i + 1]);
+        Uint8 b = (Uint8)(255.0 * textureData[i + 2]);
+
+        ((Uint8*)emulator.NTSCScreen)[i + 0] = b;
+        ((Uint8*)emulator.NTSCScreen)[i + 1] = g;
+        ((Uint8*)emulator.NTSCScreen)[i + 2] = r;
+    }
+
+    SDL_UnmapGPUTransferBuffer(device, textureDownloadTransferBuffer);
+}
+
 static void render()
 {
-    SDL_LockTexture(buffer0, NULL, (void**)&pixels0, &pitch0);
-    SDL_LockTexture(buffer1, NULL, (void**)&pixels1, &pitch1);
-    SDL_LockTexture(buffer2, NULL, (void**)&pixels2, &pitch2);
-    SDL_LockTexture(buffer3, NULL, (void**)&pixels3, &pitch3);
+    if (emulator.TriCNESCPP_HWACCEL && emulator.PPU_DecodeSignal)
+    {
+        gpuRender();
+    }
 
-
-    texcpy(pixels0, emulator.Screen,             pitch0, 256 * 1 * sizeof(int), 240);
-    texcpy(pixels1, emulator.BorderedScreen,     pitch1, 341 * 1 * sizeof(int), 262);
-    texcpy(pixels2, emulator.NTSCScreen,         pitch2, 256 * 8 * sizeof(int), 240);
-    texcpy(pixels3, emulator.BorderedNTSCScreen, pitch3, 341 * 8 * sizeof(int), 262);
-
-    SDL_UnlockTexture(buffer0);
-    SDL_UnlockTexture(buffer1);
-    SDL_UnlockTexture(buffer2);
-    SDL_UnlockTexture(buffer3);
+    if (!emulator.PPU_DecodeSignal)
+    {
+        if (!emulator.PPU_ShowScreenBorders)
+        {
+            SDL_LockTexture(buffer0, NULL, (void**)&pixels0, &pitch0);
+            texcpy(pixels0, emulator.Screen, pitch0, 256 * 1 * sizeof(int), 240);
+            SDL_UnlockTexture(buffer0);
+        }
+        else
+        {
+            SDL_LockTexture(buffer1, NULL, (void**)&pixels1, &pitch1);
+            texcpy(pixels1, emulator.BorderedScreen, pitch1, 341 * 1 * sizeof(int), 262);
+            SDL_UnlockTexture(buffer1);
+        }
+    }
+    else
+    {
+        if (!emulator.PPU_ShowScreenBorders)
+        {
+            SDL_LockTexture(buffer2, NULL, (void**)&pixels2, &pitch2);
+            texcpy(pixels2, emulator.NTSCScreen, pitch2, 256 * 8 * sizeof(int), 240);
+            SDL_UnlockTexture(buffer2);
+        }
+        else
+        {
+            SDL_LockTexture(buffer3, NULL, (void**)&pixels3, &pitch3);
+            texcpy(pixels3, emulator.BorderedNTSCScreen, pitch3, 341 * 8 * sizeof(int), 262);
+            SDL_UnlockTexture(buffer3);
+        }
+    }
 
     SDL_RenderTexture(renderer, buffer, NULL, NULL);
     SDL_RenderPresent(renderer);
@@ -362,4 +455,14 @@ SDL_AppResult SDL_AppEvent(void* appstate, SDL_Event* e)
     return SDL_APP_CONTINUE;
 }
 
-void SDL_AppQuit(void* appstate, SDL_AppResult result) { ; };
+void SDL_AppQuit(void* appstate, SDL_AppResult result)
+{
+    SDL_ReleaseGPUTexture(device, samples);
+
+    SDL_ReleaseGPUTransferBuffer(device, textureDownloadTransferBuffer);
+    SDL_ReleaseGPUTransferBuffer(device, textureUploadTransferBuffer);
+
+    SDL_ReleaseGPUComputePipeline(device, computePipeline);
+    SDL_DestroyGPUDevice(device);
+    SDL_DestroyWindow(window);
+}

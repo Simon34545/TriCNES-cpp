@@ -2,3 +2,4 @@
 out/
 AccuracyCoin.nes
 SDL2.dll
+*.spv

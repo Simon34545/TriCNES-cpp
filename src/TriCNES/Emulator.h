@@ -335,6 +335,9 @@ namespace TriCNES
         uint* BorderedScreen = new uint[341 * 262]();
         uint* BorderedNTSCScreen = new uint[341 * 8 * 262]();
 
+        float* TriCNESCPP_HWACCEL_NTSCScreen = new float[256 * 8 * 240 * 4]();
+        float* TriCNESCPP_HWACCEL_BorderedNTSCScreen = new float[341 * 8 * 262 * 4]();
+
         //Debugging
         bool Logging = false;    // If set, the tracelogger will record all instructions ran.
         bool LoggingPPU = false;
@@ -2309,6 +2312,7 @@ namespace TriCNES
         }
     public:
         bool PPU_ShowRawNTSCSignal = false;
+        bool TriCNESCPP_HWACCEL = false;
     private:
         void RenderNTSCScanline()
         {
@@ -2329,7 +2333,7 @@ namespace TriCNES
                 double R = 0;
                 double G = 0;
                 double B = 0;
-                if (!PPU_ShowRawNTSCSignal)
+                if (!(PPU_ShowRawNTSCSignal || TriCNESCPP_HWACCEL))
                 {
                     int center = i + 8;
                     int begin = center - 6;
@@ -2395,6 +2399,14 @@ namespace TriCNES
                 {
                     if (PPU_ShowRawNTSCSignal)
                     {
+                        if (TriCNESCPP_HWACCEL)
+                        {
+                            int ii = (PPU_Scanline * 341 * 8 + i) * 4;
+                            TriCNESCPP_HWACCEL_BorderedNTSCScreen[ii + 3] = Bordered_NTSC_Samples[i + 8] + 150 + (phase * 100);
+                            i++;
+                            continue;
+                        }
+
                         R = Bordered_NTSC_Samples[i] * 12;
                         G = Bordered_NTSC_Samples[i] * 12;
                         B = Bordered_NTSC_Samples[i] * 12;
@@ -2409,6 +2421,18 @@ namespace TriCNES
                 }
                 else
                 {
+                    if (TriCNESCPP_HWACCEL)
+                    {
+                        if (i >= 8 || (scanline0OddFrameOffset == 0))
+                        {
+                            int ii = (PPU_Scanline * 256 * 8 + i - scanline0OddFrameOffset) * 4;
+                            TriCNESCPP_HWACCEL_NTSCScreen[ii + 3] = NTSC_Samples[i + 8] + 150 + (phase * 100);
+                        }
+
+                        i++;
+                        continue;
+                    }
+
                     if (PPU_ShowRawNTSCSignal)
                     {
                         R = NTSC_Samples[i + 8] * 12;

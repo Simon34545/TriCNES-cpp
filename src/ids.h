@@ -67,6 +67,7 @@
 #define BTN_VSYNC 3000
 #define BTN_KSYNC 3001
 #define BTN_NTSCRAW 3002
+#define BTN_NTSCGPU 3003
 
 #define BTN_SPEED0 3010
 #define BTN_SPEED1 3011
