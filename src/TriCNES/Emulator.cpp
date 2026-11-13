@@ -360,26 +360,26 @@ namespace TriCNES
         }
         void Mapper::Connector_SetUpCPUDataPins(byte t)
         {
-            if (!Cart->Emu->ConnectorPinFloating[48]) { Cart->Emu->SeventyTwoPinConnector[48] = (t & 0x01) != 0; } // PPU D0
-            if (!Cart->Emu->ConnectorPinFloating[47]) { Cart->Emu->SeventyTwoPinConnector[47] = (t & 0x02) != 0; } // PPU D1
-            if (!Cart->Emu->ConnectorPinFloating[46]) { Cart->Emu->SeventyTwoPinConnector[46] = (t & 0x04) != 0; } // PPU D2
-            if (!Cart->Emu->ConnectorPinFloating[45]) { Cart->Emu->SeventyTwoPinConnector[45] = (t & 0x08) != 0; } // PPU D3
-            if (!Cart->Emu->ConnectorPinFloating[44]) { Cart->Emu->SeventyTwoPinConnector[44] = (t & 0x10) != 0; } // PPU D4
-            if (!Cart->Emu->ConnectorPinFloating[43]) { Cart->Emu->SeventyTwoPinConnector[43] = (t & 0x20) != 0; } // PPU D5
-            if (!Cart->Emu->ConnectorPinFloating[42]) { Cart->Emu->SeventyTwoPinConnector[42] = (t & 0x40) != 0; } // PPU D6
-            if (!Cart->Emu->ConnectorPinFloating[41]) { Cart->Emu->SeventyTwoPinConnector[41] = (t & 0x80) != 0; } // PPU D7
+            if (!Cart->Emu->ConnectorPinFloating[48]) { Cart->Emu->SeventyTwoPinConnector[48] = (t & 0x01) != 0; } // CPU D0
+            if (!Cart->Emu->ConnectorPinFloating[47]) { Cart->Emu->SeventyTwoPinConnector[47] = (t & 0x02) != 0; } // CPU D1
+            if (!Cart->Emu->ConnectorPinFloating[46]) { Cart->Emu->SeventyTwoPinConnector[46] = (t & 0x04) != 0; } // CPU D2
+            if (!Cart->Emu->ConnectorPinFloating[45]) { Cart->Emu->SeventyTwoPinConnector[45] = (t & 0x08) != 0; } // CPU D3
+            if (!Cart->Emu->ConnectorPinFloating[44]) { Cart->Emu->SeventyTwoPinConnector[44] = (t & 0x10) != 0; } // CPU D4
+            if (!Cart->Emu->ConnectorPinFloating[43]) { Cart->Emu->SeventyTwoPinConnector[43] = (t & 0x20) != 0; } // CPU D5
+            if (!Cart->Emu->ConnectorPinFloating[42]) { Cart->Emu->SeventyTwoPinConnector[42] = (t & 0x40) != 0; } // CPU D6
+            if (!Cart->Emu->ConnectorPinFloating[41]) { Cart->Emu->SeventyTwoPinConnector[41] = (t & 0x80) != 0; } // CPU D7
         }
         byte Mapper::Connector_ReadCPUDataPins()
         {
             byte t = 0;
-            if (!Cart->Emu->ConnectorPinFloating[48]) { t |= (byte)(Cart->Emu->SeventyTwoPinConnector[48] ? 0x01 : 0); } // PPU D0
-            if (!Cart->Emu->ConnectorPinFloating[47]) { t |= (byte)(Cart->Emu->SeventyTwoPinConnector[47] ? 0x02 : 0); } // PPU D1
-            if (!Cart->Emu->ConnectorPinFloating[46]) { t |= (byte)(Cart->Emu->SeventyTwoPinConnector[46] ? 0x04 : 0); } // PPU D2
-            if (!Cart->Emu->ConnectorPinFloating[45]) { t |= (byte)(Cart->Emu->SeventyTwoPinConnector[45] ? 0x08 : 0); } // PPU D3
-            if (!Cart->Emu->ConnectorPinFloating[44]) { t |= (byte)(Cart->Emu->SeventyTwoPinConnector[44] ? 0x10 : 0); } // PPU D4
-            if (!Cart->Emu->ConnectorPinFloating[43]) { t |= (byte)(Cart->Emu->SeventyTwoPinConnector[43] ? 0x20 : 0); } // PPU D5
-            if (!Cart->Emu->ConnectorPinFloating[42]) { t |= (byte)(Cart->Emu->SeventyTwoPinConnector[42] ? 0x40 : 0); } // PPU D6
-            if (!Cart->Emu->ConnectorPinFloating[41]) { t |= (byte)(Cart->Emu->SeventyTwoPinConnector[41] ? 0x80 : 0); } // PPU D7
+            if (!Cart->Emu->ConnectorPinFloating[48]) { t |= (byte)(Cart->Emu->SeventyTwoPinConnector[48] ? 0x01 : 0); } // CPU D0
+            if (!Cart->Emu->ConnectorPinFloating[47]) { t |= (byte)(Cart->Emu->SeventyTwoPinConnector[47] ? 0x02 : 0); } // CPU D1
+            if (!Cart->Emu->ConnectorPinFloating[46]) { t |= (byte)(Cart->Emu->SeventyTwoPinConnector[46] ? 0x04 : 0); } // CPU D2
+            if (!Cart->Emu->ConnectorPinFloating[45]) { t |= (byte)(Cart->Emu->SeventyTwoPinConnector[45] ? 0x08 : 0); } // CPU D3
+            if (!Cart->Emu->ConnectorPinFloating[44]) { t |= (byte)(Cart->Emu->SeventyTwoPinConnector[44] ? 0x10 : 0); } // CPU D4
+            if (!Cart->Emu->ConnectorPinFloating[43]) { t |= (byte)(Cart->Emu->SeventyTwoPinConnector[43] ? 0x20 : 0); } // CPU D5
+            if (!Cart->Emu->ConnectorPinFloating[42]) { t |= (byte)(Cart->Emu->SeventyTwoPinConnector[42] ? 0x40 : 0); } // CPU D6
+            if (!Cart->Emu->ConnectorPinFloating[41]) { t |= (byte)(Cart->Emu->SeventyTwoPinConnector[41] ? 0x80 : 0); } // CPU D7
             return t;
         }
         void Mapper::Connector_CheckCIRAM()

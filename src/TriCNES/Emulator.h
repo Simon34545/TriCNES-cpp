@@ -793,7 +793,7 @@ namespace TriCNES
                 if (ResetMode)
                 {
                     ResetModeCounter++;
-                    if (ResetModeCounter == 1477700) // Approximately how long it takes for the CIC chip to reset the console. Keep in mind, this value lowers as the temperature increases.
+                    if (ResetModeCounter == 1477840) // Approximately how long it takes for the CIC chip to reset the console. Keep in mind, this value lowers as the temperature increases.
                     {
                         ResetModeCounter = 0;
                         Reset(); // Reset via the CIC, not the reset button.
@@ -1843,11 +1843,11 @@ namespace TriCNES
         {
             Cart->MapperChip->Connector_SetUpPPUAddressPins();
             Cart->MapperChip->Connector_CheckCIRAM();
-            if (PPU_AddressBus >= 0x3F00)
+            if ((PPU_AddressBus & 0x3FFF) >= 0x3F00)
             {
                 PaletteRAM[PPU_AddressBus & (((PPU_AddressBus & 0x3) == 0) ? 0x0F : 0x1F)] = input;
             }
-            else if (PPU_AddressBus >= 0x2000 && Cart->Emu->SeventyTwoPinConnector[56])
+            else if ((PPU_AddressBus & 0x3FFF) >= 0x2000 && Cart->Emu->SeventyTwoPinConnector[56])
             {
                 // We're writing to on-console VRAM, not the cartridge.
                 // NOTE: In theory you could trigger bus conflicts with this. I'm currently just assuming the bus is free.
@@ -2022,6 +2022,7 @@ namespace TriCNES
                 else
                 {
                     PPU_v += (ushort)(PPUControlIncrementMode32 ? 32 : 1);
+                    PPU_v &= 0x7FFF;
                 }
             }
 
@@ -4042,6 +4043,7 @@ namespace TriCNES
             {
                 PPU_v++; // increment
             }
+            PPU_v &= 0x7FFF;
         }
 
         void PPU_IncrementScrollY()
@@ -4076,6 +4078,7 @@ namespace TriCNES
                     PPU_v = (ushort)((PPU_v & 0xFC1F) | (y << 5));
                 }
             }
+            PPU_v &= 0x7FFF;
         }
 
         void PPU_ResetXScroll()
