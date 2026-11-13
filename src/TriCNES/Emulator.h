@@ -76,6 +76,10 @@ namespace TriCNES
         bool dataPinsAreNotFloating = false;
         bool observedDataPinsAreNotFloating = false;
 
+        ushort PPU_AddressIn; // internal to the cartridge
+        byte PPU_DataIn; // internal to the cartridge
+        byte PPU_DataOut; // internal to the cartridge
+
         // Default to NROM behavior.
         virtual void FetchPRG(ushort Address, bool Observe);
         virtual void StorePRG(ushort Address, byte Input);
@@ -94,9 +98,9 @@ namespace TriCNES
 
     public:
         void Connector_SetUpPPUAddressPins();
-        ushort Connector_ReadPPUAddressPins();
+        void Connector_ReadPPUAddressPins();
         void Connector_SetUpPPUDataPins(byte t);
-        byte Connector_ReadPPUDataPins();
+        byte Connector_ReadPPUDataPins(byte bus);
         void Connector_SetUpCPUAddressPins(ushort Address); // the 2A03 bus, not the 6502 bus.
         ushort Connector_ReadCPUAddressPins();
         void Connector_SetUpCPUDataPins(byte t);
@@ -1779,13 +1783,13 @@ namespace TriCNES
         byte FetchVideoMemory()
         {
             Cart->MapperChip->Connector_SetUpPPUAddressPins();
+            Cart->MapperChip->Connector_SetUpPPUDataPins((byte)PPU_AddressBus); // If AccessPPU() doesn't update the pins, then we get back the address bus.
             Cart->MapperChip->Connector_CheckCIRAM();
-            byte t = 0;
 
             // Always attempt to read from the cartridge. The data pins would not be updated if reading from the nametable.
             Cart->MapperChip->Connector_PPU_RW(PPU_READ, PPU_WRITE);
             Cart->MapperChip->AccessPPU();
-            t = Cart->MapperChip->Connector_ReadPPUDataPins();
+            byte t = Cart->MapperChip->Connector_ReadPPUDataPins((byte)PPU_AddressBus);
 
             if (PPU_AddressBus >= 0x2000 && Cart->Emu->SeventyTwoPinConnector[56])
             {
