@@ -71,18 +71,20 @@ namespace TriCNES
     {
     public:
         Cartridge* Cart = nullptr;
-        byte dataBus = 0;
-        byte observedDataBus = 0;
-        bool dataPinsAreNotFloating = false;
-        bool observedDataPinsAreNotFloating = false;
+
+        ushort CPU_AddressIn; // internal to the cartridge
+        byte CPU_DataIn; // internal to the cartridge
+        byte CPU_DataOut; // internal to the cartridge
 
         ushort PPU_AddressIn; // internal to the cartridge
         byte PPU_DataIn; // internal to the cartridge
         byte PPU_DataOut; // internal to the cartridge
 
         // Default to NROM behavior.
-        virtual void FetchPRG(ushort Address, bool Observe);
-        virtual void StorePRG(ushort Address, byte Input);
+        virtual void FetchCPU();
+        virtual byte SnoopCPU(ushort Address);
+        virtual byte SnoopPPU(ushort Address);
+        virtual void StoreCPU(ushort Address, byte Input);
         virtual int FetchPatternAddress(ushort Address);
         virtual void AccessPPU();
         virtual std::vector<byte> SaveMapperRegisters();
@@ -102,7 +104,7 @@ namespace TriCNES
         void Connector_SetUpPPUDataPins(byte t);
         byte Connector_ReadPPUDataPins(byte bus);
         void Connector_SetUpCPUAddressPins(ushort Address); // the 2A03 bus, not the 6502 bus.
-        ushort Connector_ReadCPUAddressPins();
+        void Connector_ReadCPUAddressPins();
         void Connector_SetUpCPUDataPins(byte t);
         byte Connector_ReadCPUDataPins();
         virtual void Connector_CheckCIRAM();
@@ -3434,7 +3436,7 @@ namespace TriCNES
             // The color index into the palette,
             // and if this is using a sprite palette. (TODO: emulate this part)
 
-            // All of this was determined by observations with a custom test cart.
+            // All of this was determined by observations with a custom test cart->
             // It is entirely possible that the logic defined in this functions is incorrect, or possibly there are more factors at play.
             // As far as I can tell though, this is "good enough" emulation of palette corruption.
 
@@ -9068,9 +9070,6 @@ namespace TriCNES
         bool PPU_EXT_Enable = false; // I can toggle this boolean, but it is otherwise unimplemented.
 
         //for logging purposes. doesn't update databus.
-    private:
-        bool DebugObserve = false;
-    public:
         byte Observe(ushort Address)
         {
             // Reading from anywhere goes through this function.
@@ -9159,7 +9158,7 @@ namespace TriCNES
             {
                 // Reading from ROM.
                 // Different mappers could rearrange the data from the ROM into different locations on the system bus.
-                MapperFetch(Address, Cart->MemoryMapper);
+                MapperFetchPRG(Address);
                 dataPinsAreNotFloating = true;
             }
             else if (Address < 0x2000)
@@ -9251,7 +9250,7 @@ namespace TriCNES
             else
             {
                 //mapper chip stuff, but also open bus!
-                MapperFetch(Address, Cart->MemoryMapper);
+                MapperFetchPRG(Address);
             }
 
             if (addressBus >= 0x4000 && addressBus <= 0x401F) // If APU registers are active, bus conflicts can occur. Or perhaps you are intentionally reading from the APU registers...
@@ -9314,70 +9313,29 @@ namespace TriCNES
         }
         byte ObservePPU(ushort Address)
         {
-            // A way to view PPU data for various debugging tools.
-            if (Cart == nullptr)
+            if (Address >= 0x3F00)
             {
-                return 0;
-            }
-            // when reading from the PPU's Video RAM, there's a lot of mapper-specific behavior to consider.
-            Address &= 0x3FFF;
-            if (Address < 0x2000)
-            {
-                int CHR_Address = Cart->MapperChip->FetchPatternAddress(Address);
-                return Cart->CHRROM[Address];
-            }
-            else // if the VRAM address is >= $2000, we need to consider nametable mirroring.
-            {
-                if (Address >= 0x3F00)
+                if ((Address & 0x3) == 0)
                 {
-                    // read from palette RAM.
-                    // Palette RAM only returns bits 0-5, so bits 6 and 7 are PPU open bus.
-                    Address &= 0x3F1F;
-                    if ((Address & 3) == 0)
-                    {
-                        Address &= 0x3F0F;
-                    }
-                    return (byte)((PaletteRAM[Address & 0x1F] & 0x3F) | (PPUBus & 0xC0));
+                    return PaletteRAM[Address & 0x0F];
                 }
-                bool PRGVRAM = (Address & 0x800) != 0;
-                Address &= 0x3FF;
-                Address |= (ushort)(Cart->Emu->SeventyTwoPinConnector[21] ? 0x400 : 0);
-                if (Cart->AlternativeNametableArrangement)
-                {
-                    if (Cart->MemoryMapper == 4)
-                    {
-                        if (PRGVRAM)
-                        {
-                            // using the extra PRG VRAM.
-                            return Cart->PRGVRAM[Address];
-                        }
-                    }
-                }
-                Address &= 0x7FF;
-                return VRAM[Address];
+                return PaletteRAM[Address & 0x1F];
             }
+            return Cart->MapperChip->SnoopPPU(Address);
         }
 
     private:
         byte MapperObserve(ushort Address)
         {
-            Cart->MapperChip->FetchPRG(Address, true);
-            if (Cart->MapperChip->observedDataPinsAreNotFloating)
-            {
-                return Cart->MapperChip->observedDataBus;
-            }
-            return dataBus;
+            return Cart->MapperChip->SnoopCPU(Address);
         }
 
-        void MapperFetch(ushort Address, byte Mapper)
+        void MapperFetchPRG(ushort Address)
         {
             Cart->MapperChip->Connector_SetUpCPUAddressPins(Address);
-            Cart->MapperChip->FetchPRG(Address, false);
-            dataPinsAreNotFloating = Cart->MapperChip->dataPinsAreNotFloating;
-            if (dataPinsAreNotFloating)
-            {
-                dataBus = Cart->MapperChip->Connector_ReadCPUDataPins();
-            }
+            Cart->MapperChip->Connector_SetUpCPUDataPins(dataBus); // So when we read from the data pins, if nothing changed, we get back this value.
+            Cart->MapperChip->FetchCPU();
+            dataBus = Cart->MapperChip->Connector_ReadCPUDataPins();
             return;
         }
 
@@ -9568,9 +9526,9 @@ namespace TriCNES
             else if (Address >= 0x4020)
             {
                 // mapper chip specific stuff- but also open bus!
-                Cart->MapperChip->StorePRG(Address, Input);
+                Cart->MapperChip->StoreCPU(Address, Input);
 
-                //MapperStore(Input, Address, Cart.MemoryMapper);
+                //MapperStore(Input, Address, Cart->MemoryMapper);
 
             }
             else
@@ -10554,7 +10512,7 @@ namespace TriCNES
                 string TempLine_PPU2 = LogLine + "\tVRAMAddress:" + PPU_v.ToString("X4") + "\tPPUReadBuffer:" + PPU_ReadBuffer.ToString("X2");
                 string TempLine_PPU3 = LogLine + "\tPPU_Coords (" + PPU_Scanline + ", " + PPU_Dot + ")\todd:" + PPU_OddFrame.ToString() + "\tv: " + PPU_v.ToString("X4");
 
-                //string TempLine_MMC3IRQ = LogLine + "\tPPU_Coords (" + PPU_Scanline + ", " + PPU_Dot + ")\tIRQTimer:" + Cart.Mapper_4_IRQCounter + "\tIRQLatch: " + Cart.Mapper_4_IRQLatch + "\tIRQEnabled: " + Cart.Mapper_4_EnableIRQ + "\tDoIRQ: " + DoIRQ + "\tPPU_ADDR_Prev: " + (PPU_A12_Prev ? "1" : "0");
+                //string TempLine_MMC3IRQ = LogLine + "\tPPU_Coords (" + PPU_Scanline + ", " + PPU_Dot + ")\tIRQTimer:" + Cart->Mapper_4_IRQCounter + "\tIRQLatch: " + Cart->Mapper_4_IRQLatch + "\tIRQEnabled: " + Cart->Mapper_4_EnableIRQ + "\tDoIRQ: " + DoIRQ + "\tPPU_ADDR_Prev: " + (PPU_A12_Prev ? "1" : "0");
 
 
                 DebugLog.AppendLine(TempLine_PPU3);

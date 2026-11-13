@@ -7,7 +7,7 @@ namespace TriCNES
         // ines Mapper 3
     public:
         byte Mapper_3_CHRBank = 0;
-        void StorePRG(ushort Address, byte Input) override
+        void StoreCPU(ushort Address, byte Input) override
         {
             if (Address >= 0x8000)
             {

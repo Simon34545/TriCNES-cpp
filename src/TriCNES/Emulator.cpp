@@ -135,34 +135,43 @@ namespace TriCNES
             MapperChip->Cart = this;
             FDS->Cart = this;
         }
-
-        void Mapper::FetchPRG(ushort Address, bool Observe)
+        void Mapper::FetchCPU()
         {
             if ((Cart->Emu->ConnectorPinFloating[0] && Cart->Emu->ConnectorPinFloating[75]) || Cart->Emu->ConnectorPinFloating[35]) { return; } // If the cartridge is disconnected from power or ground, it cannot do anything.
-            
-            if (!Observe)
-            {
-                Address = Connector_ReadCPUAddressPins();
-            }
-            bool notFloating = false;
-            byte data = 0;
-            if (!Observe) { dataPinsAreNotFloating = false; } else { observedDataPinsAreNotFloating = false; }
-            // Observing can happen on a different thread, so we need to ensure that observing doesn't overwrite the data bus or floating pins status.
+            Connector_ReadCPUAddressPins();
 
-            if (Address >= 0x8000)
+            if (!Cart->Emu->SeventyTwoPinConnector[49]) // CPU /A15 + /M2
             {
-                data = Cart->PRGROM[Address & (Cart->PRGROMLength - 1)]; // Get the address from the ROM file. If the ROM only has $4000 bytes, this will make addresses > $BFFF mirrors of $8000 through $BFFF.
-                notFloating = true;
-            }
-            //open bus
-
-            if (notFloating)
-            {
-                EndFetchPRG(Observe, data);
+                CPU_DataOut = Cart->PRGROM[CPU_AddressIn & (Cart->PRGROMLength - 1)]; // Get the address from the ROM file. If the ROM only has $4000 bytes, this will make addresses > $BFFF mirrors of $8000 through $BFFF.
+                Connector_SetUpCPUDataPins(CPU_DataOut);
             }
             return;
         }
-        void Mapper::StorePRG(ushort Address, byte Input)
+
+
+        byte Mapper::SnoopCPU(ushort Address) // For debug purposes. It's a bit clunky.
+        {
+            if (Address >= 0x8000)
+            {
+                return Cart->PRGROM[Address & (Cart->PRGROMLength - 1)];
+            }
+            return Cart->Emu->dataBus;
+        }
+        byte Mapper::SnoopPPU(ushort Address) // For debug purposes. It's a bit clunky having to set this up for every mapper with a non-NROM CIRAM setup.
+        {
+            if (Address < 0x2000)
+            {
+                int CHR_Address = Cart->MapperChip->FetchPatternAddress(Address);
+                return Cart->CHRROM[CHR_Address];
+            }
+            else
+            {
+                ushort Addr = (ushort)(Address & 0x3FF);
+                Addr |= (ushort)((Cart->NametableHorizontalMirroring ? ((Address & 0x800) != 0) : ((Address & 0x400) != 0)) ? 0x400 : 0);
+                return Cart->Emu->VRAM[Addr];
+            }
+        }
+        void Mapper::StoreCPU(ushort Address, byte Input)
         {
         }
         int Mapper::FetchPatternAddress(ushort Address)
@@ -173,13 +182,33 @@ namespace TriCNES
         {
             Connector_ReadPPUAddressPins();
             ushort Address = PPU_AddressIn;
-
             if (!Cart->Emu->SeventyTwoPinConnector[64]) // (If PPU A13 is set, we don't do anything on the cartridge)
             {
                 int CHR_Address = Cart->MapperChip->FetchPatternAddress(Address);
                 PPU_DataIn = Connector_ReadPPUDataPins(PPU_DataIn);
-                if (!Cart->Emu->SeventyTwoPinConnector[20]) { PPU_DataOut = Cart->CHRROM[CHR_Address]; Connector_SetUpPPUDataPins(PPU_DataOut); } // Reads
-                if (!Cart->Emu->SeventyTwoPinConnector[55] && Cart->UsingCHRRAM) { Cart->CHRROM[CHR_Address] = PPU_DataIn; } // Writes
+                if (!Cart->Emu->SeventyTwoPinConnector[20]) // Reads
+                {
+                    PPU_DataOut = Cart->CHRROM[CHR_Address];
+                    Connector_SetUpPPUDataPins(PPU_DataOut);
+                }
+                if (!Cart->Emu->SeventyTwoPinConnector[55] && Cart->UsingCHRRAM) // Writes
+                {
+                    Cart->CHRROM[CHR_Address] = PPU_DataIn;
+                }
+            }
+            else if (Cart->AlternativeNametableArrangement && Cart->Emu->SeventyTwoPinConnector[61]) // Unless we have an extra Nametable
+            {
+                Address &= 0x7FF; // I don't believe there are any carts that have an alternate nametable arrangement that aren't set up this way.
+                PPU_DataIn = Connector_ReadPPUDataPins(PPU_DataIn);
+                if (!Cart->Emu->SeventyTwoPinConnector[20]) // Reads
+                {
+                    PPU_DataOut = Cart->PRGVRAM[Address];
+                    Connector_SetUpPPUDataPins(PPU_DataOut);
+                }
+                if (!Cart->Emu->SeventyTwoPinConnector[55]) // Writes
+                {
+                    Cart->PRGVRAM[Address] = PPU_DataIn;
+                }
             }
         }
         std::vector<byte> Mapper::SaveMapperRegisters()
@@ -218,20 +247,6 @@ namespace TriCNES
         byte Mapper::FDS_Get4025()
         {
             return 0;
-        }
-
-        void Mapper::EndFetchPRG(bool Observe, byte data)
-        {
-            if (!Observe)
-            {
-                dataPinsAreNotFloating = true;
-                Connector_SetUpCPUDataPins(data);
-            }
-            else
-            {
-                observedDataPinsAreNotFloating = true;
-                observedDataBus = data;
-            }
         }
 
         void Mapper::Connector_SetUpPPUAddressPins()
@@ -312,28 +327,27 @@ namespace TriCNES
             if (!Cart->Emu->ConnectorPinFloating[38]) { Cart->Emu->SeventyTwoPinConnector[38] = (Address & 0x1000) != 0; } // CPU A12
             if (!Cart->Emu->ConnectorPinFloating[39]) { Cart->Emu->SeventyTwoPinConnector[39] = (Address & 0x2000) != 0; } // CPU A13
             if (!Cart->Emu->ConnectorPinFloating[40]) { Cart->Emu->SeventyTwoPinConnector[40] = (Address & 0x4000) != 0; } // CPU A14
-            if (!Cart->Emu->ConnectorPinFloating[49]) { Cart->Emu->SeventyTwoPinConnector[49] = (Address & 0x8000) != 0; } // CPU A15
+            if (!Cart->Emu->ConnectorPinFloating[49]) { Cart->Emu->SeventyTwoPinConnector[49] = (Address & 0x8000) == 0; } // CPU /A15
         }
-        ushort Mapper::Connector_ReadCPUAddressPins()
+        void Mapper::Connector_ReadCPUAddressPins()
         {
-            ushort Address = 0;
-            if (!Cart->Emu->ConnectorPinFloating[49]) { Address |= (ushort)(Cart->Emu->SeventyTwoPinConnector[49] ? 0x8000 : 0); } // CPU A0
-            if (!Cart->Emu->ConnectorPinFloating[40]) { Address |= (ushort)(Cart->Emu->SeventyTwoPinConnector[40] ? 0x4000 : 0); } // CPU A1
-            if (!Cart->Emu->ConnectorPinFloating[39]) { Address |= (ushort)(Cart->Emu->SeventyTwoPinConnector[39] ? 0x2000 : 0); } // CPU A2
-            if (!Cart->Emu->ConnectorPinFloating[38]) { Address |= (ushort)(Cart->Emu->SeventyTwoPinConnector[38] ? 0x1000 : 0); } // CPU A3
-            if (!Cart->Emu->ConnectorPinFloating[1]) { Address |= (ushort)(Cart->Emu->SeventyTwoPinConnector[1] ? 0x0800 : 0); } // CPU A4
-            if (!Cart->Emu->ConnectorPinFloating[2]) { Address |= (ushort)(Cart->Emu->SeventyTwoPinConnector[2] ? 0x0400 : 0); } // CPU A5
-            if (!Cart->Emu->ConnectorPinFloating[3]) { Address |= (ushort)(Cart->Emu->SeventyTwoPinConnector[3] ? 0x0200 : 0); } // CPU A6
-            if (!Cart->Emu->ConnectorPinFloating[4]) { Address |= (ushort)(Cart->Emu->SeventyTwoPinConnector[4] ? 0x0100 : 0); } // CPU A7
-            if (!Cart->Emu->ConnectorPinFloating[5]) { Address |= (ushort)(Cart->Emu->SeventyTwoPinConnector[5] ? 0x0080 : 0); } // CPU A8
-            if (!Cart->Emu->ConnectorPinFloating[6]) { Address |= (ushort)(Cart->Emu->SeventyTwoPinConnector[6] ? 0x0040 : 0); } // CPU A9
-            if (!Cart->Emu->ConnectorPinFloating[7]) { Address |= (ushort)(Cart->Emu->SeventyTwoPinConnector[7] ? 0x0020 : 0); } // CPU A10
-            if (!Cart->Emu->ConnectorPinFloating[8]) { Address |= (ushort)(Cart->Emu->SeventyTwoPinConnector[8] ? 0x0010 : 0); } // CPU A11
-            if (!Cart->Emu->ConnectorPinFloating[9]) { Address |= (ushort)(Cart->Emu->SeventyTwoPinConnector[9] ? 0x0008 : 0); } // CPU A12
-            if (!Cart->Emu->ConnectorPinFloating[10]) { Address |= (ushort)(Cart->Emu->SeventyTwoPinConnector[10] ? 0x0004 : 0); } // CPU A13
-            if (!Cart->Emu->ConnectorPinFloating[11]) { Address |= (ushort)(Cart->Emu->SeventyTwoPinConnector[11] ? 0x0002 : 0); } // CPU A14
-            if (!Cart->Emu->ConnectorPinFloating[12]) { Address |= (ushort)(Cart->Emu->SeventyTwoPinConnector[12] ? 0x0001 : 0); } // CPU A15
-            return Address;
+            // This can only be done by the cartridge.
+            if (!Cart->Emu->ConnectorPinFloating[49]) { CPU_AddressIn &= 0x7FFF; CPU_AddressIn |= (ushort)(Cart->Emu->SeventyTwoPinConnector[49] ? 0 : 0x8000); } // CPU /A15
+            if (!Cart->Emu->ConnectorPinFloating[40]) { CPU_AddressIn &= 0xBFFF; CPU_AddressIn |= (ushort)(Cart->Emu->SeventyTwoPinConnector[40] ? 0x4000 : 0); } // CPU A14
+            if (!Cart->Emu->ConnectorPinFloating[39]) { CPU_AddressIn &= 0xDFFF; CPU_AddressIn |= (ushort)(Cart->Emu->SeventyTwoPinConnector[39] ? 0x2000 : 0); } // CPU A13
+            if (!Cart->Emu->ConnectorPinFloating[38]) { CPU_AddressIn &= 0xEFFF; CPU_AddressIn |= (ushort)(Cart->Emu->SeventyTwoPinConnector[38] ? 0x1000 : 0); } // CPU A12
+            if (!Cart->Emu->ConnectorPinFloating[1]) { CPU_AddressIn &= 0xF7FF; CPU_AddressIn |= (ushort)(Cart->Emu->SeventyTwoPinConnector[1] ? 0x0800 : 0); } // CPU A11
+            if (!Cart->Emu->ConnectorPinFloating[2]) { CPU_AddressIn &= 0xFBFF; CPU_AddressIn |= (ushort)(Cart->Emu->SeventyTwoPinConnector[2] ? 0x0400 : 0); } // CPU A10
+            if (!Cart->Emu->ConnectorPinFloating[3]) { CPU_AddressIn &= 0xFDFF; CPU_AddressIn |= (ushort)(Cart->Emu->SeventyTwoPinConnector[3] ? 0x0200 : 0); } // CPU A9
+            if (!Cart->Emu->ConnectorPinFloating[4]) { CPU_AddressIn &= 0xFEFF; CPU_AddressIn |= (ushort)(Cart->Emu->SeventyTwoPinConnector[4] ? 0x0100 : 0); } // CPU A8
+            if (!Cart->Emu->ConnectorPinFloating[5]) { CPU_AddressIn &= 0xFF7F; CPU_AddressIn |= (ushort)(Cart->Emu->SeventyTwoPinConnector[5] ? 0x0080 : 0); } // CPU A7
+            if (!Cart->Emu->ConnectorPinFloating[6]) { CPU_AddressIn &= 0xFFBF; CPU_AddressIn |= (ushort)(Cart->Emu->SeventyTwoPinConnector[6] ? 0x0040 : 0); } // CPU A6
+            if (!Cart->Emu->ConnectorPinFloating[7]) { CPU_AddressIn &= 0xFFDF; CPU_AddressIn |= (ushort)(Cart->Emu->SeventyTwoPinConnector[7] ? 0x0020 : 0); } // CPU A5
+            if (!Cart->Emu->ConnectorPinFloating[8]) { CPU_AddressIn &= 0xFFEF; CPU_AddressIn |= (ushort)(Cart->Emu->SeventyTwoPinConnector[8] ? 0x0010 : 0); } // CPU A4
+            if (!Cart->Emu->ConnectorPinFloating[9]) { CPU_AddressIn &= 0xFFF7; CPU_AddressIn |= (ushort)(Cart->Emu->SeventyTwoPinConnector[9] ? 0x0008 : 0); } // CPU A3
+            if (!Cart->Emu->ConnectorPinFloating[10]) { CPU_AddressIn &= 0xFFFB; CPU_AddressIn |= (ushort)(Cart->Emu->SeventyTwoPinConnector[10] ? 0x0004 : 0); } // CPU A2
+            if (!Cart->Emu->ConnectorPinFloating[11]) { CPU_AddressIn &= 0xFFFD; CPU_AddressIn |= (ushort)(Cart->Emu->SeventyTwoPinConnector[11] ? 0x0002 : 0); } // CPU A1
+            if (!Cart->Emu->ConnectorPinFloating[12]) { CPU_AddressIn &= 0xFFFE; CPU_AddressIn |= (ushort)(Cart->Emu->SeventyTwoPinConnector[12] ? 0x0001 : 0); } // CPU A0
         }
         void Mapper::Connector_SetUpCPUDataPins(byte t)
         {

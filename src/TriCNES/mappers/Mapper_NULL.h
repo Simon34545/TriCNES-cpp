@@ -6,9 +6,8 @@ namespace TriCNES
     {
         // There is not a cartridge inserted in the console.
     public:
-        void FetchPRG(ushort Address, bool Observe) override
+        void FetchCPU() override
         {
-            dataPinsAreNotFloating = false;
             // the data pins are always floating. There's no cartridge inserted!
             return;
         }

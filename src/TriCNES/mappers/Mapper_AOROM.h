@@ -7,38 +7,33 @@ namespace TriCNES
         // ines Mapper 7
     public:
         byte Mapper_7_BankSelect = 0;
-        void FetchPRG(ushort Address, bool Observe) override
+        void FetchCPU() override
         {
-            if (!Observe)
-            {
-                Address = Connector_ReadCPUAddressPins();
-            }
-            bool notFloating = false;
-            byte data = 0;
-            if (!Observe) { dataPinsAreNotFloating = false; }
-            else { observedDataPinsAreNotFloating = false; }
-            // Observing can happen on a different thread, so we need to ensure that observing doesn't overwrite the data bus or floating pins status.
+            if ((Cart->Emu->ConnectorPinFloating[0] && Cart->Emu->ConnectorPinFloating[75]) || Cart->Emu->ConnectorPinFloating[35]) { return; } // If the cartridge is disconnected from power or ground, it cannot do anything.
+            Connector_ReadCPUAddressPins();
 
-            if (Address >= 0x8000)
+            if (!Cart->Emu->SeventyTwoPinConnector[49]) // CPU /A15 + /M2
             {
-                ushort tempo = (ushort)(Address & 0x7FFF);
-                data = Cart->PRGROM[(0x8000 * (Mapper_7_BankSelect & 0x07) + tempo) & (Cart->PRGROMLength - 1)]; // Get the address from the ROM file. If the ROM only has $4000 bytes, this will make addresses > $BFFF mirrors of $8000 through $BFFF.
-                notFloating = true;
+                CPU_DataOut = Cart->PRGROM[(0x8000 * (Mapper_7_BankSelect & 0x07) + (CPU_AddressIn & 0x7FFF)) & (Cart->PRGROMLength - 1)]; // Get the address from the ROM file. If the ROM only has $4000 bytes, this will make addresses > $BFFF mirrors of $8000 through $BFFF.
+                Connector_SetUpCPUDataPins(CPU_DataOut);
             }
-            //open bus
 
-            if (notFloating)
-            {
-                EndFetchPRG(Observe, data);
-            }
             return;
         }
-        void StorePRG(ushort Address, byte Input) override
+        void StoreCPU(ushort Address, byte Input) override
         {
             if (Address >= 0x8000)
             {
                 Mapper_7_BankSelect = Input;
             }
+        }
+        byte SnoopCPU(ushort Address) override // For debug purposes. It's a bit clunky.
+        {
+            if (Address >= 0x8000)
+            {
+                return Cart->PRGROM[(0x8000 * (Mapper_7_BankSelect & 0x07) + (Address & 0x7FFF)) & (Cart->PRGROMLength - 1)]; // Get the address from the ROM file. If the ROM only has $4000 bytes, this will make addresses > $BFFF mirrors of $8000 through $BFFF.
+            }
+            return Cart->Emu->dataBus;
         }
         void Connector_CheckCIRAM() override
         {
@@ -50,6 +45,20 @@ namespace TriCNES
             else // show nametable 1
             {
                 if (!Cart->Emu->ConnectorPinFloating[21]) { Cart->Emu->SeventyTwoPinConnector[21] = true; }
+            }
+        }
+        byte SnoopPPU(ushort Address) override // For debug purposes. It's a bit clunky having to set this up for every mapper with a non-NROM CIRAM setup.
+        {
+            if (Address < 0x2000)
+            {
+                int CHR_Address = Cart->MapperChip->FetchPatternAddress(Address);
+                return Cart->CHRROM[CHR_Address];
+            }
+            else
+            {
+                ushort Addr = (ushort)(Address & 0x3FF);
+                Addr |= (ushort)(((Mapper_7_BankSelect & 0x10) == 0) ? 0 : 0x400);
+                return Cart->Emu->VRAM[Addr];
             }
         }
         std::vector<byte> SaveMapperRegisters() override
