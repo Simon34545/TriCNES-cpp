@@ -81,9 +81,8 @@ namespace TriCNES
         virtual void StorePRG(ushort Address, byte Input);
         virtual int FetchPatternAddress(ushort Address);
         virtual void FetchPPU();
+        virtual void WritePPU();
         virtual void CheckCIRAM();
-        virtual byte FetchNametable();
-        virtual ushort MirrorNametable(ushort Address);
         virtual std::vector<byte> SaveMapperRegisters();
         virtual void LoadMapperRegisters(std::vector<byte> State, int startIndex/*, int &exitIndex*/);
         virtual void PPUClock(); // runs every PPU clock. (See MMC3)
@@ -1497,7 +1496,7 @@ namespace TriCNES
             }
             else if (PPU_Scanline == 242 && PPU_Dot == 1)
             {
-                if (PPU_ShowScreenBorders && !PPU_DecodeSignal) // if we're showing the boarders, we need to wait for 2 more scanlines to render.
+                if (PPU_ShowScreenBorders && !(PPU_DecodeSignal || PPU_ShowRawNTSCSignal)) // if we're showing the boarders, we need to wait for 2 more scanlines to render.
                 {
                     FrameAdvance_ReachedVBlank = true; // Emulator specific stuff. Used for frame advancing to detect the frame has ended, and nothing else.
                 }
@@ -1520,9 +1519,9 @@ namespace TriCNES
                 PPUStatus_SpriteZeroHit_Delayed = false;
             }
 
-            else if (PPU_Scanline == 0 && PPU_Dot == 1)
+            else if (PPU_Scanline == 261 && PPU_Dot == 0)
             {
-                if (PPU_ShowScreenBorders && PPU_DecodeSignal) // if we're showing the boarders, we need to wait for scanline 0.
+                if (PPU_ShowScreenBorders && (PPU_DecodeSignal || PPU_ShowRawNTSCSignal)) // if we're showing the boarders, we need to wait for scanline 0.
                 {
                     FrameAdvance_ReachedVBlank = true; // Emulator specific stuff. Used for frame advancing to detect the frame has ended, and nothing else.
                 }
@@ -1710,9 +1709,22 @@ namespace TriCNES
                 {
                     DrawToScreen();
 
+                    if (PPU_DecodeSignal)
+                    {
+                        if (PPU_Dot == 1 && PPU_Scanline == 0)
+                        {
+                            ntsc_signal_of_dot_0 = ntsc_signal;
+                            ntsc_signal_of_dot_0 += 4;
+                            ntsc_signal_of_dot_0 %= 12;
+                        }
+                        else if ((PPU_Dot == 0))
+                        {
+                            ntsc_signal_of_dot_0 = ntsc_signal;
+                        }
+                    }
+
                     if (PPU_DecodeSignal && (PPU_Dot == 0) && PPU_Scanline < 241)
                     {
-                        ntsc_signal_of_dot_0 = ntsc_signal;
                         chosenColor = PaletteRAM[0x00] & 0x3F;
                         if (PPU_Mask_Greyscale) // if the ppu greyscale mode is active,
                         {
@@ -1775,13 +1787,41 @@ namespace TriCNES
             {
                 // We're reading from on-console VRAM, not the cartridge.
                 // NOTE: In theory you could trigger bus conflicts with this. I'm currently just assuming the bus is free.
-                t = Cart->MapperChip->FetchNametable();
+                ushort Address = (ushort)((Cart->Emu->PPU_AddressBus & 0x3F00) | Cart->Emu->PPU_OctalLatch);
+                Address &= 0x3FF;
+                Address |= (ushort)(Cart->Emu->SeventyTwoPinConnector[21] ? 0x400 : 0);
+                t = Cart->Emu->VRAM[Address];
             }
 
             PPU_AddressBus &= 0xFF00;
             PPU_AddressBus |= t;
 
             return t;
+        }
+
+        void WriteVideoMemory(byte input)
+        {
+            Cart->MapperChip->Connector_SetUpPPUAddressPins();
+            Cart->MapperChip->CheckCIRAM();
+            if (PPU_AddressBus >= 0x3F00)
+            {
+                PaletteRAM[PPU_AddressBus & (((PPU_AddressBus & 0x3) == 0) ? 0x0F : 0x1F)] = input;
+            }
+            else if (PPU_AddressBus >= 0x2000 && Cart->Emu->SeventyTwoPinConnector[56])
+            {
+                // We're writing to on-console VRAM, not the cartridge.
+                // NOTE: In theory you could trigger bus conflicts with this. I'm currently just assuming the bus is free.
+                ushort Address = (ushort)((Cart->Emu->PPU_AddressBus & 0x3F00) | Cart->Emu->PPU_OctalLatch);
+                Address &= 0x3FF;
+                Address |= (ushort)(Cart->Emu->SeventyTwoPinConnector[21] ? 0x400 : 0);
+                Cart->Emu->VRAM[Address] = input;
+            }
+            else
+            {
+                Cart->MapperChip->Connector_SetUpPPUDataPins(input);
+                Cart->MapperChip->WritePPU();
+            }
+
         }
 
         bool PPUActiveForShiftRegisterUpdate;
@@ -1971,7 +2011,7 @@ namespace TriCNES
             PPU_WRITE = !PPU_2007_PaletteRAMEnable && PPU_2007_DB_PAR;
             if (PPU_2007_DB_PAR) // Using PAR instead of PPU_WRITE, since I re-use StorePPUData() for writes to palette RAM.
             {
-                StorePPUData(PPU_AddressBus, PPU_2007_WriteData);
+                WriteVideoMemory(PPU_2007_WriteData);
             }
         }
 
@@ -9279,21 +9319,27 @@ namespace TriCNES
             }
             else // if the VRAM address is >= $2000, we need to consider nametable mirroring.
             {
-                Address = PPUAddressWithMirroring(Address);
                 if (Address >= 0x3F00)
                 {
                     // read from palette RAM.
                     // Palette RAM only returns bits 0-5, so bits 6 and 7 are PPU open bus.
+                    Address &= 0x3F1F;
+                    if ((Address & 3) == 0)
+                    {
+                        Address &= 0x3F0F;
+                    }
                     return (byte)((PaletteRAM[Address & 0x1F] & 0x3F) | (PPUBus & 0xC0));
                 }
+                bool PRGVRAM = (Address & 0x800) != 0;
+                Address &= 0x3FF;
+                Address |= (ushort)(Cart->Emu->SeventyTwoPinConnector[21] ? 0x400 : 0);
                 if (Cart->AlternativeNametableArrangement)
                 {
                     if (Cart->MemoryMapper == 4)
                     {
-                        if ((Address & 0x800) != 0)
+                        if (PRGVRAM)
                         {
                             // using the extra PRG VRAM.
-                            Address &= 0x7FF;
                             return Cart->PRGVRAM[Address];
                         }
                     }
@@ -9304,30 +9350,6 @@ namespace TriCNES
         }
 
     private:
-        ushort PPUAddressWithMirroring(ushort Address)
-        {
-            // if the address is less than $2000, there is no mirroring.
-            if (Address < 0x2000)
-            {
-                return Address;
-            }
-
-            // if the vram address is pointing to the color palettes:
-            if (Address >= 0x3F00)
-            {
-                Address &= 0x3F1F;
-                if ((Address & 3) == 0)
-                {
-                    Address &= 0x3F0F;
-                }
-                return Address;
-            }
-            Address &= 0x2FFF; // $3000 through $3F00 is always mirrored down.
-
-            Address = Cart->MapperChip->MirrorNametable(Address);
-            return Address;
-        }
-
         byte MapperObserve(ushort Address, byte Mapper)
         {
             Cart->MapperChip->FetchPRG(Address, true);
@@ -9813,47 +9835,6 @@ namespace TriCNES
 
         }
     private:
-        void StorePPUData(ushort Address, byte In)
-        {
-            Cart->Emu->SeventyTwoPinConnector[29] = (In & 0x01) != 0; // PPU D0
-            Cart->Emu->SeventyTwoPinConnector[30] = (In & 0x02) != 0; // PPU D1
-            Cart->Emu->SeventyTwoPinConnector[31] = (In & 0x04) != 0; // PPU D2
-            Cart->Emu->SeventyTwoPinConnector[32] = (In & 0x08) != 0; // PPU D3
-            Cart->Emu->SeventyTwoPinConnector[68] = (In & 0x10) != 0; // PPU D4
-            Cart->Emu->SeventyTwoPinConnector[67] = (In & 0x20) != 0; // PPU D5
-            Cart->Emu->SeventyTwoPinConnector[66] = (In & 0x40) != 0; // PPU D6
-            Cart->Emu->SeventyTwoPinConnector[65] = (In & 0x80) != 0; // PPU D7
-
-            // writing to the PPU's VRAM.
-            // first, check if the address has any mirroring going on:
-            Address = PPUAddressWithMirroring(Address);
-            if (Address < 0x2000 && Cart->UsingCHRRAM) // if this is pointing to CHR RAM
-            {
-                int CHR_Address = Cart->MapperChip->FetchPatternAddress(Address);
-                Cart->CHRROM[CHR_Address] = In;
-            }
-            else if (Address >= 0x3F00)
-            {
-                PaletteRAM[Address & 0x1F] = In;
-            }
-            else // if this is not pointing to CHR RAM or palettes
-            {
-                if (Cart->AlternativeNametableArrangement)
-                {
-                    if (Cart->MemoryMapper == 4)
-                    {
-                        if ((Address & 0x800) != 0)
-                        {
-                            // using the extra PRG VRAM.
-                            Cart->PRGVRAM[Address & 0x7FF] = In;
-                            return;
-                        }
-                    }
-                }
-                VRAM[Address & 0x7FF] = In;
-            }
-        }
-
         void StartDMCSample()
         {
             // This runs when writing to $4015, or if a DPCM sample is looping and needs to restart.

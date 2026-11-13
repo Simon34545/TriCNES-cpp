@@ -53,7 +53,7 @@ namespace TriCNES
             }
             else
             {
-                if ((64 << ROM[11]) == 0)
+                if (ROM[11] == 0)
                 {
                     CHRROMLength = 0x2000; // Default to 0x2000 bytes of CHR RAM.
                 }
@@ -180,27 +180,21 @@ namespace TriCNES
             }
             Connector_SetUpPPUDataPins(t);
         }
+        void Mapper::WritePPU()
+        {
+            // This will always use the upper 8 bits of the address bus | the octal latch. This Octal Latch replaces the lower 8 bits of the address bus.
+            ushort Address = Connector_ReadPPUAddressPins();
+            byte input = Connector_ReadPPUDataPins();
+            if (Cart->UsingCHRRAM)
+            {
+                int CHR_Address = Cart->MapperChip->FetchPatternAddress(Address);
+                Cart->CHRROM[CHR_Address] = input;
+            }
+        }
         void Mapper::CheckCIRAM()
-        { 
+        {
             Cart->Emu->SeventyTwoPinConnector[56] = !Cart->Emu->SeventyTwoPinConnector[57];
-        }
-        byte Mapper::FetchNametable()
-        {
-            ushort Address = (ushort)((Cart->Emu->PPU_AddressBus & 0x3F00) | Cart->Emu->PPU_OctalLatch);
-            Address = Cart->MapperChip->MirrorNametable(Address);
-            Address &= 0x7FF;
-            return Cart->Emu->VRAM[Address];
-        }
-        ushort Mapper::MirrorNametable(ushort Address)
-        {
-            if (!Cart->NametableHorizontalMirroring)
-            {
-                return (ushort)(Address & 0x37FF); // mask away $0800
-            }
-            else // horizontal
-            {
-                return (ushort)((Address & 0x33FF) | ((Address & 0x0800) >> 1)); // mask away $0C00, bit 10 becomes the former bit 11
-            }
+            Cart->Emu->SeventyTwoPinConnector[21] = Cart->NametableHorizontalMirroring ? Cart->Emu->SeventyTwoPinConnector[61] : Cart->Emu->SeventyTwoPinConnector[62];
         }
         std::vector<byte> Mapper::SaveMapperRegisters()
         {

@@ -143,26 +143,27 @@ namespace TriCNES
             else if (Address < 0x1C00) { Address &= 0x3FF; return (Mapper_69_CHR_1K6 * 0x400 + Address) & (Cart->CHRROMLength - 1); }
             else { Address &= 0x3FF; return (Mapper_69_CHR_1K7 * 0x400 + Address) & (Cart->CHRROMLength - 1); }
         }
-        ushort MirrorNametable(ushort Address) override
+        void CheckCIRAM() override
         {
+            Cart->Emu->SeventyTwoPinConnector[56] = !Cart->Emu->SeventyTwoPinConnector[57];
+
             switch (Mapper_69_NametableMirroring)
             {
             case 0: //vertical
-                Address &= 0x37FF; // mask away $0800
+                Cart->Emu->SeventyTwoPinConnector[21] = Cart->Emu->SeventyTwoPinConnector[62];
                 break;
             case 1: //horizontal
-                Address = (ushort)((Address & 0x33FF) | ((Address & 0x0800) >> 1)); // mask away $0C00, bit 10 becomes the former bit 11
+                Cart->Emu->SeventyTwoPinConnector[21] = Cart->Emu->SeventyTwoPinConnector[61];
                 break;
             case 2: //one-screen A
-                Address &= 0x33FF;
+                Cart->Emu->SeventyTwoPinConnector[21] = false;
                 break;
             case 3: //one-screen B
-                Address &= 0x33FF;
-                Address |= 0x400;
+                Cart->Emu->SeventyTwoPinConnector[21] = true;
                 break;
             }
-            return Address;
         }
+
         std::vector<byte> SaveMapperRegisters() override
         {
             std::vector<byte> State;

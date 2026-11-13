@@ -242,6 +242,15 @@ namespace TriCNES
             {
                 Cart->Emu->SeventyTwoPinConnector[56] = !Cart->Emu->SeventyTwoPinConnector[57];
             }
+
+            if (Mapper_4_NametableMirroring) //horizontal
+            {
+                Cart->Emu->SeventyTwoPinConnector[21] = Cart->Emu->SeventyTwoPinConnector[61];
+            }
+            else //vertical
+            {
+                Cart->Emu->SeventyTwoPinConnector[21] = Cart->Emu->SeventyTwoPinConnector[62];
+            }
         }
         void FetchPPU() override
         {
@@ -256,9 +265,8 @@ namespace TriCNES
             }
             else if (Cart->AlternativeNametableArrangement && (Address & 0x800) != 0)
             {
-                // Oh wait- we *are* reading from the cartridge!
+                // On cartridge VRAM for extra nametables.
                 // using the extra PRG VRAM.
-                Address = Connector_ReadPPUAddressPins();
                 Address &= 0x7FF;
                 byte b = Cart->PRGVRAM[Address];
                 Connector_SetUpPPUDataPins(b);
@@ -266,20 +274,23 @@ namespace TriCNES
             }
             Connector_SetUpPPUDataPins(t);
         }
-        ushort MirrorNametable(ushort Address) override
+        void WritePPU() override
         {
-            if (!Cart->AlternativeNametableArrangement)
+            // This will always use the upper 8 bits of the address bus | the octal latch. This Octal Latch replaces the lower 8 bits of the address bus.
+            ushort Address = Connector_ReadPPUAddressPins();
+            byte input = Connector_ReadPPUDataPins();
+            if (Cart->Emu->SeventyTwoPinConnector[57] && Address < 0x2000) // Addresses $2000 through $3FFF do NOT read from the cartrdige.
             {
-                if (Mapper_4_NametableMirroring) //horizontal
-                {
-                    return (ushort)((Address & 0x33FF) | ((Address & 0x0800) >> 1)); // mask away $0C00, bit 10 becomes the former bit 11
-                }
-                else //vertical
-                {
-                    return (ushort)(Address & 0x37FF); // mask away $0800
-                }
+                int CHR_Address = Cart->MapperChip->FetchPatternAddress(Address);
+                Cart->CHRROM[CHR_Address] = input;
             }
-            return Address;
+            else if (Cart->AlternativeNametableArrangement && (Address & 0x800) != 0)
+            {
+                // On cartridge VRAM for extra nametables.
+                // using the extra PRG VRAM.
+                Address &= 0x7FF;
+                Cart->PRGVRAM[Address] = input;
+            }
         }
         std::vector<byte> SaveMapperRegisters() override
         {
