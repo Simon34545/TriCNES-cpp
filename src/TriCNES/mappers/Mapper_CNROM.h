@@ -14,15 +14,18 @@ namespace TriCNES
                 Mapper_3_CHRBank = (byte)(Input & 0x3);
             }
         }
-        byte FetchCHR(ushort Address, bool Observe) override
+        int FetchPatternAddress(ushort Address) override
         {
-            return Cart->CHRROM[(Mapper_3_CHRBank * 0x2000 + Address) & (Cart->CHRROMLength - 1)];
+            return (Mapper_3_CHRBank * 0x2000 + Address) & (Cart->CHRROMLength - 1);
         }
         std::vector<byte> SaveMapperRegisters() override
         {
             std::vector<byte> State;
             for (int i = 0; i < Cart->PRGRAMLength; i++) { State.push_back(Cart->PRGRAM[i]); }
-            for (int i = 0; i < Cart->CHRRAMLength; i++) { State.push_back(Cart->CHRRAM[i]); }
+            if (Cart->UsingCHRRAM)
+            {
+                for (int i = 0; i < Cart->CHRROMLength; i++) { State.push_back(Cart->CHRROM[i]); }
+            }
             State.push_back(Mapper_3_CHRBank);
             return State;
         }
@@ -30,7 +33,10 @@ namespace TriCNES
         {
             int p = startIndex;
             for (int i = 0; i < Cart->PRGRAMLength; i++) { Cart->PRGRAM[i] = State[p++]; }
-            for (int i = 0; i < Cart->CHRRAMLength; i++) { Cart->CHRRAM[i] = State[p++]; }
+            if (Cart->UsingCHRRAM)
+            {
+                for (int i = 0; i < Cart->CHRROMLength; i++) { Cart->CHRROM[i] = State[p++]; }
+            }
             Mapper_3_CHRBank = State[p++];
             // exitIndex = p;
         }

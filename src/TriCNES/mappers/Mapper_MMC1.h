@@ -14,6 +14,10 @@ namespace TriCNES
         bool Mapper_1_PB = false;
         void FetchPRG(ushort Address, bool Observe) override
         {
+            if (!Observe)
+            {
+                Address = Connector_ReadCPUAddressPins();
+            }
             bool notFloating = false;
             byte data = 0;
             if (!Observe) { dataPinsAreNotFloating = false; } else { observedDataPinsAreNotFloating = false; }
@@ -126,7 +130,7 @@ namespace TriCNES
                 Mapper_1_Control |= 0b01100;
             }
         }
-        byte FetchCHR(ushort Address, bool Observe) override
+        int FetchPatternAddress(ushort Address) override
         {
             // bit 4 of Mapper_1_Control controls how the pattern tables are swapped. if set, 2 banks of 4Kib. Otherwise, 1 8Kib bank
             if ((Mapper_1_Control & 0x10) != 0)
@@ -135,8 +139,8 @@ namespace TriCNES
                 // address < 0x1000 is the first pattern table, else, the second pattern table.
                 // if the final write for the MMC1 shift register was in the $A000 - $BFFF, this updates Mapper_1_CHR0
                 // if the final write for the MMC1 shift register was in the $B000 - $CFFF, this updates Mapper_1_CHR1
-                if (Address < 0x1000) { return Cart->CHRROM[((Mapper_1_CHR0 & 0x1F) * 0x1000 + Address) & (Cart->CHRROMLength - 1)]; }
-                else { Address &= 0xFFF; return Cart->CHRROM[((Mapper_1_CHR1 & 0x1F) * 0x1000 + Address) & (Cart->CHRROMLength - 1)]; }
+                if (Address < 0x1000) { return ((Mapper_1_CHR0 & 0x1F) * 0x1000 + Address) & (Cart->CHRROMLength - 1); }
+                else { Address &= 0xFFF; return ((Mapper_1_CHR1 & 0x1F) * 0x1000 + Address) & (Cart->CHRROMLength - 1); }
             }
             else // one swappable bank that changes both pattern tables.
             {
@@ -169,7 +173,10 @@ namespace TriCNES
         {
             std::vector<byte> State;
             for (int i = 0; i < Cart->PRGRAMLength; i++) { State.push_back(Cart->PRGRAM[i]); }
-            for (int i = 0; i < Cart->CHRRAMLength; i++) { State.push_back(Cart->CHRRAM[i]); }
+            if (Cart->UsingCHRRAM)
+            {
+                for (int i = 0; i < Cart->CHRROMLength; i++) { State.push_back(Cart->CHRROM[i]); }
+            }
             State.push_back(Mapper_1_ShiftRegister);
             State.push_back(Mapper_1_Control);
             State.push_back(Mapper_1_CHR0);
@@ -182,7 +189,10 @@ namespace TriCNES
         {
             int p = startIndex;
             for (int i = 0; i < Cart->PRGRAMLength; i++) { Cart->PRGRAM[i] = State[p++]; }
-            for (int i = 0; i < Cart->CHRRAMLength; i++) { Cart->CHRRAM[i] = State[p++]; }
+            if (Cart->UsingCHRRAM)
+            {
+                for (int i = 0; i < Cart->CHRROMLength; i++) { Cart->CHRROM[i] = State[p++]; }
+            }
             Mapper_1_ShiftRegister = State[p++];
             Mapper_1_Control = State[p++];
             Mapper_1_CHR0 = State[p++];

@@ -43,13 +43,28 @@ namespace TriCNES
             UsingCHRRAM = CHR_Size == 0; // If CHR_Size == 0, this is using CHR RAM
 
             PRGROMLength = PRG_Size * 0x4000;
-            CHRROMLength = CHR_Size * 0x2000;
             PRGRAMLength = 0x2000;
-            CHRRAMLength = 0x2000;
+
+            CHRROMLength = 0;
+
+            if (!UsingCHRRAM)
+            {
+                CHRROMLength = CHR_Size * 0x2000; // 0x2000 bytes of CHR ROM, multiplied by byte 5 of the iNES header.
+            }
+            else
+            {
+                if ((64 << ROM[11]) == 0)
+                {
+                    CHRROMLength = 0x2000; // Default to 0x2000 bytes of CHR RAM.
+                }
+                else
+                {
+                    CHRROMLength = 64 << ROM[11]; // 0x2000 bytes of CHR ROM, multiplied by byte 5 of the iNES header.
+                }
+            }
 
             PRGROM = new byte[PRGROMLength]; // 0x4000 bytes of PRG ROM, multiplied by byte 4 of the iNES header.
-            CHRROM = new byte[CHRROMLength]; // 0x2000 bytes of CHR ROM, multiplied by byte 5 of the iNES header.
-            CHRRAM = new byte[CHRRAMLength]();            // CHR RAM always has 2 kibibytes
+            CHRROM = new byte[CHRROMLength];
 
             NametableHorizontalMirroring = ((ROM[6] & 1) == 0); // The style in which the nametable is mirrored is part of the iNES header.
             AlternativeNametableArrangement = ((ROM[6] & 8) != 0); // Some mappers support other arrangements.
@@ -60,7 +75,11 @@ namespace TriCNES
             }
 
             memcpy(PRGROM, &ROM[0x10], PRGROMLength); // This sets up the PRG ROM array with the values from the .nes file
-            memcpy(CHRROM, &ROM[0x10 + PRGROMLength], CHRROMLength); // This sets up the CHR ROM array with the values from the .nes file
+            
+            if (!UsingCHRRAM)
+            {
+                memcpy(CHRROM, &ROM[0x10 + PRGROMLength], CHRROMLength); // This sets up the CHR ROM array with the values from the .nes file
+            }
 
             // at this point, the ROM byte array is no longer needed, so null it to free up its memory.
             delete[] ROM;
@@ -108,7 +127,8 @@ namespace TriCNES
             FDS = new DiskDrive();
             if (!filepath.empty()) FDS->InsertDisk(filepath);
             PRGRAM = new byte[0x8000](); // The FDS has 32Kib of PRG RAM!
-            CHRRAM = new byte[0x2000](); // and 8 Kib of CHR RAM.
+            CHRROM = new byte[0x2000](); // and 8 Kib of CHR RAM.
+            UsingCHRRAM = true;
             Name = filepath; // For debugging, it's nice to see the file name sometimes.
 
             MapperChip = new Mapper_FDS(ROM);
@@ -143,9 +163,9 @@ namespace TriCNES
         void Mapper::StorePRG(ushort Address, byte Input)
         {
         }
-        byte Mapper::FetchCHR(ushort Address, bool Observe)
+        int Mapper::FetchPatternAddress(ushort Address)
         {
-            return Cart->CHRROM[Address & 0x1FFF];
+            return Address & 0x1FFF;
         }
         void Mapper::FetchPPU()
         {
@@ -155,15 +175,8 @@ namespace TriCNES
             byte t = Cart->Emu->PPU_OctalLatch;
             if (Cart->Emu->SeventyTwoPinConnector[57] && Address < 0x2000) // Addresses $2000 through $3FFF do NOT read from the cartrdige.
             {
-                if (Cart->UsingCHRRAM)
-                {
-                    t = Cart->CHRRAM[Address];
-                }
-                else
-                {
-                    //Pattern Table
-                    t = Cart->MapperChip->FetchCHR(Address, false);
-                }
+                int CHR_Address = Cart->MapperChip->FetchPatternAddress(Address);
+                t = Cart->CHRROM[CHR_Address];
             }
             Connector_SetUpPPUDataPins(t);
         }
@@ -193,14 +206,20 @@ namespace TriCNES
         {
             std::vector<byte> State;
             for (int i = 0; i < Cart->PRGRAMLength; i++) { State.push_back(Cart->PRGRAM[i]); }
-            for (int i = 0; i < Cart->CHRRAMLength; i++) { State.push_back(Cart->CHRRAM[i]); }
+            if (Cart->UsingCHRRAM)
+            {
+                for (int i = 0; i < Cart->CHRROMLength; i++) { State.push_back(Cart->CHRROM[i]); }
+            }
             return State;
         }
         void Mapper::LoadMapperRegisters(std::vector<byte> State, int startIndex/*, int &exitIndex*/)
         {
             int p = startIndex;
             for (int i = 0; i < Cart->PRGRAMLength; i++) { Cart->PRGRAM[i] = State[p++]; }
-            for (int i = 0; i < Cart->CHRRAMLength; i++) { Cart->CHRRAM[i] = State[p++]; }
+            if (Cart->UsingCHRRAM)
+            {
+                for (int i = 0; i < Cart->CHRROMLength; i++) { Cart->CHRROM[i] = State[p++]; }
+            }
             //exitIndex = p;
         }
         void Mapper::PPUClock() // runs every PPU clock. (See MMC3)

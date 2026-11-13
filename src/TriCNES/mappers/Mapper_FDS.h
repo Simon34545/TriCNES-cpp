@@ -18,6 +18,10 @@ namespace TriCNES
 
         void FetchPRG(ushort Address, bool Observe) override
         {
+            if (!Observe)
+            {
+                Address = Connector_ReadCPUAddressPins();
+            }
             bool notFloating = false;
             byte data = 0;
             if (!Observe) { dataPinsAreNotFloating = false; }
@@ -99,9 +103,9 @@ namespace TriCNES
             }
             return;
         }
-        byte FetchCHR(ushort Address, bool Observe) override
+        int FetchPatternAddress(ushort Address) override
         {
-            return Cart->CHRRAM[Address];
+            return Address;
         }
         void StorePRG(ushort Address, byte Input) override
         {
@@ -182,7 +186,10 @@ namespace TriCNES
         {
             std::vector<byte> State;
             for (int i = 0; i < Cart->PRGRAMLength; i++) { State.push_back(Cart->PRGRAM[i]); }
-            for (int i = 0; i < Cart->CHRRAMLength; i++) { State.push_back(Cart->CHRRAM[i]); }
+            if (Cart->UsingCHRRAM)
+            {
+                for (int i = 0; i < Cart->CHRROMLength; i++) { State.push_back(Cart->CHRROM[i]); }
+            }
 
             State.push_back(FDS_4025_Control);
             State.push_back((byte)Cart->FDS->clock);
@@ -206,7 +213,10 @@ namespace TriCNES
         {
             int p = startIndex;
             for (int i = 0; i < Cart->PRGRAMLength; i++) { Cart->PRGRAM[i] = State[p++]; }
-            for (int i = 0; i < Cart->CHRRAMLength; i++) { Cart->CHRRAM[i] = State[p++]; }
+            if (Cart->UsingCHRRAM)
+            {
+                for (int i = 0; i < Cart->CHRROMLength; i++) { Cart->CHRROM[i] = State[p++]; }
+            }
 
             FDS_4025_Control = State[p++];
             Cart->FDS->clock = State[p++];

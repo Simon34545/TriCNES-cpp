@@ -43,7 +43,6 @@ namespace TriCNES
         byte CHR_Size = 0;       // Header info: how many kb of CHR data does this cartridge have?
         byte PRG_SizeMinus1 = 0; // PRG_Size-1; This is frequently used when grabbing data from PRG banks
 
-        byte* CHRRAM = nullptr;       // If this cartridge has character RAM, this array is used.
         bool UsingCHRRAM = false;    // Header info: CHR RAM doesn't exist on all cartridges.
 
         byte* PRGRAM = nullptr;       // PRG RAM / Battery backed save RAM.
@@ -53,7 +52,6 @@ namespace TriCNES
         int PRGROMLength = 0;
         int CHRROMLength = 0;
         int PRGRAMLength = 0;
-        int CHRRAMLength = 0;
 
         int PRGVRAMLength = 0;
 
@@ -81,7 +79,7 @@ namespace TriCNES
         // Default to NROM behavior.
         virtual void FetchPRG(ushort Address, bool Observe);
         virtual void StorePRG(ushort Address, byte Input);
-        virtual byte FetchCHR(ushort Address, bool Observe);
+        virtual int FetchPatternAddress(ushort Address);
         virtual void FetchPPU();
         virtual void CheckCIRAM();
         virtual byte FetchNametable();
@@ -9276,15 +9274,8 @@ namespace TriCNES
             Address &= 0x3FFF;
             if (Address < 0x2000)
             {
-                if (Cart->UsingCHRRAM)
-                {
-                    return Cart->CHRRAM[Address];
-                }
-                else
-                {
-                    //Pattern Table
-                    return Cart->MapperChip->FetchCHR(Address, true);
-                }
+                int CHR_Address = Cart->MapperChip->FetchPatternAddress(Address);
+                return Cart->CHRROM[Address];
             }
             else // if the VRAM address is >= $2000, we need to consider nametable mirroring.
             {
@@ -9836,9 +9827,10 @@ namespace TriCNES
             // writing to the PPU's VRAM.
             // first, check if the address has any mirroring going on:
             Address = PPUAddressWithMirroring(Address);
-            if (Address < 0x2000) // if this is pointing to CHR RAM
+            if (Address < 0x2000 && Cart->UsingCHRRAM) // if this is pointing to CHR RAM
             {
-                Cart->CHRRAM[Address] = In;
+                int CHR_Address = Cart->MapperChip->FetchPatternAddress(Address);
+                Cart->CHRROM[CHR_Address] = In;
             }
             else if (Address >= 0x3F00)
             {
@@ -11214,14 +11206,6 @@ namespace TriCNES
             PPU_Update2001Delay = State[p++];              //TOMPORARY
             PPU_Update2001OAMCorruptionDelay = State[p++]; //TOMPORARY
             PPU_Update2001EmphasisBitsDelay = State[p++];  //TOMPORARY
-            
-            for (int i = 0; i < 0x800; i++) { State.push_back(RAM[i]); }
-            for (int i = 0; i < 0x800; i++) { State.push_back(VRAM[i]); }
-            for (int i = 0; i < 0x100; i++) { State.push_back(OAM[i]); }
-            for (int i = 0; i < 32; i++) { State.push_back(OAM2[i]); }
-            for (int i = 0; i < 0x20; i++) { State.push_back(PaletteRAM[i]); }
-            for (int i = 0; i < Cart->PRGRAMLength; i++) { State.push_back(Cart->PRGRAM[i]); }
-            for (int i = 0; i < Cart->CHRRAMLength; i++) { State.push_back(Cart->CHRRAM[i]); }
 
             for (int i = 0; i < 0x800; i++) { RAM[i] = State[p++]; }
             for (int i = 0; i < 0x800; i++) { VRAM[i] = State[p++]; }

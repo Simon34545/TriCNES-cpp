@@ -24,6 +24,10 @@ namespace TriCNES
         byte Mapper_4_M2Filter = 0;
         void FetchPRG(ushort Address, bool Observe) override
         {
+            if (!Observe)
+            {
+                Address = Connector_ReadCPUAddressPins();
+            }
             bool notFloating = false;
             byte data = 0;
             if (!Observe) { dataPinsAreNotFloating = false; }
@@ -206,26 +210,26 @@ namespace TriCNES
                 }
             }
         }
-        byte FetchCHR(ushort Address, bool Observe) override
+        int FetchPatternAddress(ushort Address) override
         {
             //Writes to $8000 determine the mode, writes to $8001 determine the banks
             if ((Mapper_4_8000 & 0x80) == 0) // bit 7 of the previous write to $8000 determines which pattern table is 2 2kb banks, and which is 4 1kb banks.
             {
-                if (Address < 0x800) { return Cart->CHRROM[(Mapper_4_CHR_2K0 * 0x400 + Address) & (Cart->CHRROMLength - 1)]; }
-                else if (Address < 0x1000) { Address &= 0x7FF; return Cart->CHRROM[(Mapper_4_CHR_2K8 * 0x400 + Address) & (Cart->CHRROMLength - 1)]; }
-                else if (Address < 0x1400) { Address &= 0x3FF; return Cart->CHRROM[(Mapper_4_CHR_1K0 * 0x400 + Address) & (Cart->CHRROMLength - 1)]; }
-                else if (Address < 0x1800) { Address &= 0x3FF; return Cart->CHRROM[(Mapper_4_CHR_1K4 * 0x400 + Address) & (Cart->CHRROMLength - 1)]; }
-                else if (Address < 0x1C00) { Address &= 0x3FF; return Cart->CHRROM[(Mapper_4_CHR_1K8 * 0x400 + Address) & (Cart->CHRROMLength - 1)]; }
-                else { Address &= 0x3FF; return Cart->CHRROM[(Mapper_4_CHR_1KC * 0x400 + Address) & (Cart->CHRROMLength - 1)]; }
+                if (Address < 0x800)                         { return (Mapper_4_CHR_2K0 * 0x400 + Address) & (Cart->CHRROMLength - 1); }
+                else if (Address < 0x1000) { Address &= 0x7FF; return (Mapper_4_CHR_2K8 * 0x400 + Address) & (Cart->CHRROMLength - 1); }
+                else if (Address < 0x1400) { Address &= 0x3FF; return (Mapper_4_CHR_1K0 * 0x400 + Address) & (Cart->CHRROMLength - 1); }
+                else if (Address < 0x1800) { Address &= 0x3FF; return (Mapper_4_CHR_1K4 * 0x400 + Address) & (Cart->CHRROMLength - 1); }
+                else if (Address < 0x1C00) { Address &= 0x3FF; return (Mapper_4_CHR_1K8 * 0x400 + Address) & (Cart->CHRROMLength - 1); }
+                else                       { Address &= 0x3FF; return (Mapper_4_CHR_1KC * 0x400 + Address) & (Cart->CHRROMLength - 1); }
             }
             else
             {
-                if (Address < 0x400) { return Cart->CHRROM[(Mapper_4_CHR_1K0 * 0x400 + Address) & (Cart->CHRROMLength - 1)]; }
-                else if (Address < 0x800) { Address &= 0x3FF; return Cart->CHRROM[(Mapper_4_CHR_1K4 * 0x400 + Address) & (Cart->CHRROMLength - 1)]; }
-                else if (Address < 0xC00) { Address &= 0x3FF; return Cart->CHRROM[(Mapper_4_CHR_1K8 * 0x400 + Address) & (Cart->CHRROMLength - 1)]; }
-                else if (Address < 0x1000) { Address &= 0x3FF; return Cart->CHRROM[(Mapper_4_CHR_1KC * 0x400 + Address) & (Cart->CHRROMLength - 1)]; }
-                else if (Address < 0x1800) { Address &= 0x7FF; return Cart->CHRROM[(Mapper_4_CHR_2K0 * 0x400 + Address) & (Cart->CHRROMLength - 1)]; }
-                else { Address &= 0x7FF; return Cart->CHRROM[(Mapper_4_CHR_2K8 * 0x400 + Address) & (Cart->CHRROMLength - 1)]; }
+                if (Address < 0x400)                         { return (Mapper_4_CHR_1K0 * 0x400 + Address) & (Cart->CHRROMLength - 1); }
+                else if (Address < 0x800)  { Address &= 0x3FF; return (Mapper_4_CHR_1K4 * 0x400 + Address) & (Cart->CHRROMLength - 1); }
+                else if (Address < 0xC00)  { Address &= 0x3FF; return (Mapper_4_CHR_1K8 * 0x400 + Address) & (Cart->CHRROMLength - 1); }
+                else if (Address < 0x1000) { Address &= 0x3FF; return (Mapper_4_CHR_1KC * 0x400 + Address) & (Cart->CHRROMLength - 1); }
+                else if (Address < 0x1800) { Address &= 0x7FF; return (Mapper_4_CHR_2K0 * 0x400 + Address) & (Cart->CHRROMLength - 1); }
+                else                       { Address &= 0x7FF; return (Mapper_4_CHR_2K8 * 0x400 + Address) & (Cart->CHRROMLength - 1); }
             }
         }
         void CheckCIRAM() override
@@ -247,15 +251,8 @@ namespace TriCNES
             byte t = Cart->Emu->PPU_OctalLatch;
             if (Cart->Emu->SeventyTwoPinConnector[57] && Address < 0x2000) // Addresses $2000 through $3FFF do NOT read from the cartrdige.
             {
-                if (Cart->UsingCHRRAM)
-                {
-                    t = Cart->CHRRAM[Address];
-                }
-                else
-                {
-                    //Pattern Table
-                    t = Cart->MapperChip->FetchCHR(Address, false);
-                }
+                int CHR_Address = FetchPatternAddress(Address);
+                t = Cart->CHRROM[CHR_Address];
             }
             else if (Cart->AlternativeNametableArrangement && (Address & 0x800) != 0)
             {
@@ -288,7 +285,10 @@ namespace TriCNES
         {
             std::vector<byte> State;
             for (int i = 0; i < Cart->PRGRAMLength; i++) { State.push_back(Cart->PRGRAM[i]); }
-            for (int i = 0; i < Cart->CHRRAMLength; i++) { State.push_back(Cart->CHRRAM[i]); }
+            if (Cart->UsingCHRRAM)
+            {
+                for (int i = 0; i < Cart->CHRROMLength; i++) { State.push_back(Cart->CHRROM[i]); }
+            }
             if (Cart->PRGVRAM != nullptr)
             {
                 for (int i = 0; i < Cart->PRGVRAMLength; i++) { State.push_back(Cart->PRGVRAM[i]); }
@@ -315,7 +315,10 @@ namespace TriCNES
         {
             int p = startIndex;
             for (int i = 0; i < Cart->PRGRAMLength; i++) { Cart->PRGRAM[i] = State[p++]; }
-            for (int i = 0; i < Cart->CHRRAMLength; i++) { Cart->CHRRAM[i] = State[p++]; }
+            if (Cart->UsingCHRRAM)
+            {
+                for (int i = 0; i < Cart->CHRROMLength; i++) { Cart->CHRROM[i] = State[p++]; }
+            }
             if (Cart->PRGVRAM != nullptr)
             {
                 for (int i = 0; i < Cart->PRGVRAMLength; i++) { Cart->PRGVRAM[i] = State[p++]; }

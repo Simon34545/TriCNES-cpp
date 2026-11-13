@@ -9,6 +9,10 @@ namespace TriCNES
         byte Mapper_7_BankSelect = 0;
         void FetchPRG(ushort Address, bool Observe) override
         {
+            if (!Observe)
+            {
+                Address = Connector_ReadCPUAddressPins();
+            }
             bool notFloating = false;
             byte data = 0;
             if (!Observe) { dataPinsAreNotFloating = false; }
@@ -17,11 +21,11 @@ namespace TriCNES
 
             if (Address >= 0x8000)
             {
-                dataPinsAreNotFloating = true;
                 ushort tempo = (ushort)(Address & 0x7FFF);
-                dataBus = Cart->PRGROM[(0x8000 * (Mapper_7_BankSelect & 0x07) + tempo) & (Cart->PRGROMLength - 1)];
+                data = Cart->PRGROM[(0x8000 * (Mapper_7_BankSelect & 0x07) + tempo) & (Cart->PRGROMLength - 1)]; // Get the address from the ROM file. If the ROM only has $4000 bytes, this will make addresses > $BFFF mirrors of $8000 through $BFFF.
+                notFloating = true;
             }
-            // AOROM doesn't have any PRG RAM
+            //open bus
 
             if (notFloating)
             {
@@ -53,7 +57,10 @@ namespace TriCNES
         {
             std::vector<byte> State;
             for (int i = 0; i < Cart->PRGRAMLength; i++) { State.push_back(Cart->PRGRAM[i]); }
-            for (int i = 0; i < Cart->CHRRAMLength; i++) { State.push_back(Cart->CHRRAM[i]); }
+            if (Cart->UsingCHRRAM)
+            {
+                for (int i = 0; i < Cart->CHRROMLength; i++) { State.push_back(Cart->CHRROM[i]); }
+            }
             State.push_back(Mapper_7_BankSelect);
             return State;
         }
@@ -61,7 +68,10 @@ namespace TriCNES
         {
             int p = startIndex;
             for (int i = 0; i < Cart->PRGRAMLength; i++) { Cart->PRGRAM[i] = State[p++]; }
-            for (int i = 0; i < Cart->CHRRAMLength; i++) { Cart->CHRRAM[i] = State[p++]; }
+            if (Cart->UsingCHRRAM)
+            {
+                for (int i = 0; i < Cart->CHRROMLength; i++) { Cart->CHRROM[i] = State[p++]; }
+            }
             Mapper_7_BankSelect = State[p++];
             // exitIndex = p;
         }

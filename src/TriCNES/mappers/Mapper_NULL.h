@@ -13,7 +13,7 @@ namespace TriCNES
             return;
         }
 
-        byte FetchCHR(ushort Address, bool Observe) override
+        int FetchPatternAddress(ushort Address) override
         {
             // there's no cartridge. TODO: Look into this. Supposedly this would likely be the lower 8 bits of the address bus, but CIRAM enable is also floating.
             return 0;
