@@ -244,12 +244,18 @@ static void keyDown(SDL_Keycode key)
             }
         }
     }
+    else
+    {
+        switch (key)
+        {
+        case SDLK_P: pause(NULL); break;
+        }
+    }
 
     switch (key)
     {
     case SDLK_LSHIFT: mod_shift = true; break;
     case SDLK_LCTRL:  mod_ctrl = true; break;
-    case SDLK_P: pause(NULL); break;
     }
 
     if (emulator.TAS_ReadingTAS) return;

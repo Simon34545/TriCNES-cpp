@@ -249,6 +249,15 @@ namespace TriCNES
             return 0;
         }
 
+        bool Mapper::CheckCIC()
+        {
+            // I'm not actually emulating the CIC internals. (... yet.)
+            // Instead, I'll simply return true so long as the cartridge has power.
+            if ((Cart->Emu->ConnectorPinFloating[0] && Cart->Emu->ConnectorPinFloating[75]) || Cart->Emu->ConnectorPinFloating[35]) { return false; } // If the cartridge is disconnected from power or ground, it cannot do anything, so the CIC check fails.
+            if (Cart->Emu->ConnectorPinFloating[33] || Cart->Emu->ConnectorPinFloating[34] || Cart->Emu->ConnectorPinFloating[70]) { return false; } // If these pins for the CIC chip get disconnected, the CIC chip cannot match the console's CIC.
+            return true;
+        }
+
         void Mapper::Connector_SetUpPPUAddressPins()
         {
             if (!Cart->Emu->ConnectorPinFloating[28]) { Cart->Emu->SeventyTwoPinConnector[28] = (Cart->Emu->PPU_OctalLatch & 0x01) != 0; } // PPU A0

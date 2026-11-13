@@ -37,7 +37,7 @@ MENU_CALLBACK(power)
 MENU_CALLBACK(reset)
 {
     SDL_LockAudioStream(stream);
-    if (powered) emulator.Reset();
+    if (powered) emulator.ResetButton();
     SDL_UnlockAudioStream(stream);
 }
 
