@@ -352,18 +352,18 @@ namespace TriCNES
         {
             if (TiltingCart)
             {
-                if (!Cart->Emu->ConnectorPinFloating[12]) { Cart->Emu->SeventyTwoPinConnector[12] = (Address & 0x01) != 0; } // CPU A0
-                if (!Cart->Emu->ConnectorPinFloating[11]) { Cart->Emu->SeventyTwoPinConnector[11] = (Address & 0x02) != 0; } // CPU A1
-                if (!Cart->Emu->ConnectorPinFloating[10]) { Cart->Emu->SeventyTwoPinConnector[10] = (Address & 0x04) != 0; } // CPU A2
-                if (!Cart->Emu->ConnectorPinFloating[9]) { Cart->Emu->SeventyTwoPinConnector[9] = (Address & 0x08) != 0; } // CPU A3
-                if (!Cart->Emu->ConnectorPinFloating[8]) { Cart->Emu->SeventyTwoPinConnector[8] = (Address & 0x10) != 0; } // CPU A4
-                if (!Cart->Emu->ConnectorPinFloating[7]) { Cart->Emu->SeventyTwoPinConnector[7] = (Address & 0x20) != 0; } // CPU A5
-                if (!Cart->Emu->ConnectorPinFloating[6]) { Cart->Emu->SeventyTwoPinConnector[6] = (Address & 0x40) != 0; } // CPU A6
-                if (!Cart->Emu->ConnectorPinFloating[5]) { Cart->Emu->SeventyTwoPinConnector[5] = (Address & 0x80) != 0; } // CPU A7
-                if (!Cart->Emu->ConnectorPinFloating[4]) { Cart->Emu->SeventyTwoPinConnector[4] = (Address & 0x0100) != 0; } // CPU A8
-                if (!Cart->Emu->ConnectorPinFloating[3]) { Cart->Emu->SeventyTwoPinConnector[3] = (Address & 0x0200) != 0; } // CPU A9
-                if (!Cart->Emu->ConnectorPinFloating[2]) { Cart->Emu->SeventyTwoPinConnector[2] = (Address & 0x0400) != 0; } // CPU A10
-                if (!Cart->Emu->ConnectorPinFloating[1]) { Cart->Emu->SeventyTwoPinConnector[1] = (Address & 0x0800) != 0; } // CPU A11
+                if (!Cart->Emu->ConnectorPinFloating[12]) { Cart->Emu->SeventyTwoPinConnector[12] = (Address & 0x01)   != 0; } // CPU A0
+                if (!Cart->Emu->ConnectorPinFloating[11]) { Cart->Emu->SeventyTwoPinConnector[11] = (Address & 0x02)   != 0; } // CPU A1
+                if (!Cart->Emu->ConnectorPinFloating[10]) { Cart->Emu->SeventyTwoPinConnector[10] = (Address & 0x04)   != 0; } // CPU A2
+                if (!Cart->Emu->ConnectorPinFloating[9])  { Cart->Emu->SeventyTwoPinConnector[9]  = (Address & 0x08)   != 0; } // CPU A3
+                if (!Cart->Emu->ConnectorPinFloating[8])  { Cart->Emu->SeventyTwoPinConnector[8]  = (Address & 0x10)   != 0; } // CPU A4
+                if (!Cart->Emu->ConnectorPinFloating[7])  { Cart->Emu->SeventyTwoPinConnector[7]  = (Address & 0x20)   != 0; } // CPU A5
+                if (!Cart->Emu->ConnectorPinFloating[6])  { Cart->Emu->SeventyTwoPinConnector[6]  = (Address & 0x40)   != 0; } // CPU A6
+                if (!Cart->Emu->ConnectorPinFloating[5])  { Cart->Emu->SeventyTwoPinConnector[5]  = (Address & 0x80)   != 0; } // CPU A7
+                if (!Cart->Emu->ConnectorPinFloating[4])  { Cart->Emu->SeventyTwoPinConnector[4]  = (Address & 0x0100) != 0; } // CPU A8
+                if (!Cart->Emu->ConnectorPinFloating[3])  { Cart->Emu->SeventyTwoPinConnector[3]  = (Address & 0x0200) != 0; } // CPU A9
+                if (!Cart->Emu->ConnectorPinFloating[2])  { Cart->Emu->SeventyTwoPinConnector[2]  = (Address & 0x0400) != 0; } // CPU A10
+                if (!Cart->Emu->ConnectorPinFloating[1])  { Cart->Emu->SeventyTwoPinConnector[1]  = (Address & 0x0800) != 0; } // CPU A11
                 if (!Cart->Emu->ConnectorPinFloating[38]) { Cart->Emu->SeventyTwoPinConnector[38] = (Address & 0x1000) != 0; } // CPU A12
                 if (!Cart->Emu->ConnectorPinFloating[39]) { Cart->Emu->SeventyTwoPinConnector[39] = (Address & 0x2000) != 0; } // CPU A13
                 if (!Cart->Emu->ConnectorPinFloating[40]) { Cart->Emu->SeventyTwoPinConnector[40] = (Address & 0x4000) != 0; } // CPU A14
@@ -385,15 +385,15 @@ namespace TriCNES
                 if (!Cart->Emu->ConnectorPinFloating[40]) { CPU_AddressIn &= 0xBFFF; CPU_AddressIn |= (ushort)(Cart->Emu->SeventyTwoPinConnector[40] ? 0x4000 : 0); } // CPU A14
                 if (!Cart->Emu->ConnectorPinFloating[39]) { CPU_AddressIn &= 0xDFFF; CPU_AddressIn |= (ushort)(Cart->Emu->SeventyTwoPinConnector[39] ? 0x2000 : 0); } // CPU A13
                 if (!Cart->Emu->ConnectorPinFloating[38]) { CPU_AddressIn &= 0xEFFF; CPU_AddressIn |= (ushort)(Cart->Emu->SeventyTwoPinConnector[38] ? 0x1000 : 0); } // CPU A12
-                if (!Cart->Emu->ConnectorPinFloating[1]) { CPU_AddressIn &= 0xF7FF; CPU_AddressIn |= (ushort)(Cart->Emu->SeventyTwoPinConnector[1] ? 0x0800 : 0); } // CPU A11
-                if (!Cart->Emu->ConnectorPinFloating[2]) { CPU_AddressIn &= 0xFBFF; CPU_AddressIn |= (ushort)(Cart->Emu->SeventyTwoPinConnector[2] ? 0x0400 : 0); } // CPU A10
-                if (!Cart->Emu->ConnectorPinFloating[3]) { CPU_AddressIn &= 0xFDFF; CPU_AddressIn |= (ushort)(Cart->Emu->SeventyTwoPinConnector[3] ? 0x0200 : 0); } // CPU A9
-                if (!Cart->Emu->ConnectorPinFloating[4]) { CPU_AddressIn &= 0xFEFF; CPU_AddressIn |= (ushort)(Cart->Emu->SeventyTwoPinConnector[4] ? 0x0100 : 0); } // CPU A8
-                if (!Cart->Emu->ConnectorPinFloating[5]) { CPU_AddressIn &= 0xFF7F; CPU_AddressIn |= (ushort)(Cart->Emu->SeventyTwoPinConnector[5] ? 0x0080 : 0); } // CPU A7
-                if (!Cart->Emu->ConnectorPinFloating[6]) { CPU_AddressIn &= 0xFFBF; CPU_AddressIn |= (ushort)(Cart->Emu->SeventyTwoPinConnector[6] ? 0x0040 : 0); } // CPU A6
-                if (!Cart->Emu->ConnectorPinFloating[7]) { CPU_AddressIn &= 0xFFDF; CPU_AddressIn |= (ushort)(Cart->Emu->SeventyTwoPinConnector[7] ? 0x0020 : 0); } // CPU A5
-                if (!Cart->Emu->ConnectorPinFloating[8]) { CPU_AddressIn &= 0xFFEF; CPU_AddressIn |= (ushort)(Cart->Emu->SeventyTwoPinConnector[8] ? 0x0010 : 0); } // CPU A4
-                if (!Cart->Emu->ConnectorPinFloating[9]) { CPU_AddressIn &= 0xFFF7; CPU_AddressIn |= (ushort)(Cart->Emu->SeventyTwoPinConnector[9] ? 0x0008 : 0); } // CPU A3
+                if (!Cart->Emu->ConnectorPinFloating[1])  { CPU_AddressIn &= 0xF7FF; CPU_AddressIn |= (ushort)(Cart->Emu->SeventyTwoPinConnector[1]  ? 0x0800 : 0); } // CPU A11
+                if (!Cart->Emu->ConnectorPinFloating[2])  { CPU_AddressIn &= 0xFBFF; CPU_AddressIn |= (ushort)(Cart->Emu->SeventyTwoPinConnector[2]  ? 0x0400 : 0); } // CPU A10
+                if (!Cart->Emu->ConnectorPinFloating[3])  { CPU_AddressIn &= 0xFDFF; CPU_AddressIn |= (ushort)(Cart->Emu->SeventyTwoPinConnector[3]  ? 0x0200 : 0); } // CPU A9
+                if (!Cart->Emu->ConnectorPinFloating[4])  { CPU_AddressIn &= 0xFEFF; CPU_AddressIn |= (ushort)(Cart->Emu->SeventyTwoPinConnector[4]  ? 0x0100 : 0); } // CPU A8
+                if (!Cart->Emu->ConnectorPinFloating[5])  { CPU_AddressIn &= 0xFF7F; CPU_AddressIn |= (ushort)(Cart->Emu->SeventyTwoPinConnector[5]  ? 0x0080 : 0); } // CPU A7
+                if (!Cart->Emu->ConnectorPinFloating[6])  { CPU_AddressIn &= 0xFFBF; CPU_AddressIn |= (ushort)(Cart->Emu->SeventyTwoPinConnector[6]  ? 0x0040 : 0); } // CPU A6
+                if (!Cart->Emu->ConnectorPinFloating[7])  { CPU_AddressIn &= 0xFFDF; CPU_AddressIn |= (ushort)(Cart->Emu->SeventyTwoPinConnector[7]  ? 0x0020 : 0); } // CPU A5
+                if (!Cart->Emu->ConnectorPinFloating[8])  { CPU_AddressIn &= 0xFFEF; CPU_AddressIn |= (ushort)(Cart->Emu->SeventyTwoPinConnector[8]  ? 0x0010 : 0); } // CPU A4
+                if (!Cart->Emu->ConnectorPinFloating[9])  { CPU_AddressIn &= 0xFFF7; CPU_AddressIn |= (ushort)(Cart->Emu->SeventyTwoPinConnector[9]  ? 0x0008 : 0); } // CPU A3
                 if (!Cart->Emu->ConnectorPinFloating[10]) { CPU_AddressIn &= 0xFFFB; CPU_AddressIn |= (ushort)(Cart->Emu->SeventyTwoPinConnector[10] ? 0x0004 : 0); } // CPU A2
                 if (!Cart->Emu->ConnectorPinFloating[11]) { CPU_AddressIn &= 0xFFFD; CPU_AddressIn |= (ushort)(Cart->Emu->SeventyTwoPinConnector[11] ? 0x0002 : 0); } // CPU A1
                 if (!Cart->Emu->ConnectorPinFloating[12]) { CPU_AddressIn &= 0xFFFE; CPU_AddressIn |= (ushort)(Cart->Emu->SeventyTwoPinConnector[12] ? 0x0001 : 0); } // CPU A0
