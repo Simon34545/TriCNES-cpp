@@ -373,6 +373,7 @@ namespace TriCNES
             {
                 // Okay, real talk. If we're not messing with the 72 pin connector, we don't need to do any of that, and we can optimize that down to this...
                 CPU_AddressIn = Address;
+                Cart->Emu->SeventyTwoPinConnector[49] = (Address & 0x8000) == 0; // This one is important too.
             }
         }
         void Mapper::Connector_ReadCPUAddressPins()
