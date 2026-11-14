@@ -385,6 +385,7 @@ namespace TriCNES
 
         byte operationCycle = 0; // This tracks what cycle of a given instruction is being emulated. Cycle 0 fetches the opcode, and all cycles after that have specific logic depending on which cycle needs emulated next.
 
+        bool CPU_SYNC = false;
         ushort temporaryAddress = 0; // I use this to temporarily modify the value of the address bus for some if statements. This is mostly for checking if the low byte under/over flows.
 
 
@@ -3235,7 +3236,11 @@ namespace TriCNES
                 }
                 if ((PPU_Mask_ShowSprites || PPU_Mask_ShowBackground))
                 {
-                    PPU_OAMBuffer_In = OAM2[0];
+                    PPU_OAMBuffer_In = OAM2[OAM2Address];
+                }
+                else
+                {
+                    PPU_OAMBuffer_In = OAM[PPUOAMAddress]; // The OAM buffer is updated with Primary OAM when rendering is disabled.
                 }
                 if (PPU_Dot == 339)
                 {
@@ -4198,6 +4203,7 @@ namespace TriCNES
 
         void CompleteOperation()
         {
+            CPU_SYNC = true;
             operationCycle = 0xFF; // this will be incremented to 0.
             addressBus = programCounter;
             CPU_Read = true;
@@ -4332,9 +4338,9 @@ namespace TriCNES
                 }
 
             }
-            else if (operationCycle == 0) // We are not running any DMAs, and this is the first cycle of an instruction.
+            else if (CPU_SYNC) // We are not running any DMAs, and this is the first cycle of an instruction.
             {
-
+                CPU_SYNC = false;
                 // cycle 0. fetch opcode:
                 addressBus = programCounter;
 
@@ -4369,7 +4375,7 @@ namespace TriCNES
                     addressBus = programCounter;
                 }
 
-                operationCycle++; // increment this for use in the following CPU cycle.
+                operationCycle = 1; // set this for use in the following CPU cycle.
 
             }
             else
@@ -10598,6 +10604,7 @@ namespace TriCNES
             State.push_back(H);
             State.push_back((byte)(IgnoreH ? 1 : 0));
 
+            State.push_back((byte)(CPU_SYNC ? 1 : 0));
             State.push_back((byte)(CPU_Read ? 1 : 0));
             State.push_back((byte)(DoBRK ? 1 : 0));
             State.push_back((byte)(DoNMI ? 1 : 0));
@@ -10905,6 +10912,7 @@ namespace TriCNES
             H = State[p++];
             IgnoreH = (State[p++] & 1) == 1;
 
+            CPU_SYNC = (State[p++] & 1) == 1;
             CPU_Read = (State[p++] & 1) == 1;
             DoBRK = (State[p++] & 1) == 1;
             DoNMI = (State[p++] & 1) == 1;
