@@ -49,6 +49,8 @@ namespace TriCNES
         bool AlternativeNametableArrangement = false; // Header info: Some mapper chips support "alternative nametable arrangements", which are mapper-specific.
         byte* PRGVRAM = nullptr;      // PRG VRAM, for the alternative nametable arrangements.
         
+        static Mapper* SetMapper(int m);
+
         int PRGROMLength = 0;
         int CHRROMLength = 0;
         int PRGRAMLength = 0;

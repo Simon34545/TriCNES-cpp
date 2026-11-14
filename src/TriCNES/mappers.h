@@ -8,5 +8,6 @@
 #include "./mappers/Mapper_UxROM.h"
 #include "./mappers/Mapper_CNROM.h"
 #include "./mappers/Mapper_AOROM.h"
+#include "./mappers/Mapper_GxROM.h"
 #include "./mappers/Mapper_FME7.h"
 #include "./mappers/Mapper_FDS.h"

@@ -5,6 +5,24 @@
 
 namespace TriCNES
 {
+    Mapper* Cartridge::SetMapper(int m)
+    {
+        switch (m)
+        {
+            default:
+            case 0: return new Mapper_NROM(); break;
+            case 1: return new Mapper_MMC1(); break;
+            case 71:
+            case 2: return new Mapper_UxROM(); break;
+            case 3: return new Mapper_CNROM(); break;
+            case 4: return new Mapper_MMC3(); break;
+            case 7: return new Mapper_AOROM(); break;
+            case 9: return new Mapper_MMC2(); break;
+            case 66: return new Mapper_GxROM(); break;
+            case 69: return new Mapper_FME7(); break;
+        }
+    }
+
     Cartridge::Cartridge(std::string filepath)
         {
             std::ifstream file(filepath, std::ios::binary | std::ios::ate); // Reads the file from the provided file path, and stores every byte into an array.
@@ -87,19 +105,7 @@ namespace TriCNES
             PRGRAM = new byte[PRGRAMLength](); // PRG RAM probably has different lengths depending on the mapper, but this emulator doesn't yet support any mappers in which that length isn't 2 kibibytes.
 
             Name = filepath; // For debugging, it's nice to see the file name sometimes.
-            switch (MemoryMapper)
-            {
-                default:
-                case 0: MapperChip = new Mapper_NROM(); break;
-                case 1: MapperChip = new Mapper_MMC1(); break;
-                case 71:
-                case 2: MapperChip = new Mapper_UxROM(); break;
-                case 3: MapperChip = new Mapper_CNROM(); break;
-                case 4: MapperChip = new Mapper_MMC3(); break;
-                case 7: MapperChip = new Mapper_AOROM(); break;
-                case 9: MapperChip = new Mapper_MMC2(); break;
-                case 69: MapperChip = new Mapper_FME7(); break;
-            }
+            MapperChip = SetMapper(MemoryMapper);
             MapperChip->Cart = this;
         }
     Cartridge::Cartridge(std::string filepath, std::string FDSBIOS_filepath)
