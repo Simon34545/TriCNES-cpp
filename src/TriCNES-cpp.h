@@ -116,6 +116,9 @@ static DropdownSelect settingsScaleSelect;
 
 static MENU tools;
 
+static MENU connector0;
+static MENU connector1;
+
 MENU_CALLBACK(syncSettings);
 MENU_CALLBACK(disk);
 MENU_CALLBACK(dummy_handler) {};

@@ -344,7 +344,32 @@ MENU_CALLBACK(syncSettings)
 {
     SDL_LockAudioStream(stream);
 
-    emulator.TriCNESCPP_HWACCEL = GetMenuItemChecked(settings, BTN_NTSCGPU);
+    bool tilting = false;
+
+    for (int i = BTN_PIN00; i < BTN_PIN71; i++)
+    {
+        bool val = false;
+
+        if (i < BTN_PIN36)
+        {
+            val = GetMenuItemChecked(connector0, i);
+        }
+        else
+        {
+            val = GetMenuItemChecked(connector1, i);
+        }
+
+        emulator.ConnectorPinFloating[i - BTN_PIN00] = !val;
+
+        tilting |= !val;
+    }
+
+    if (emulator.Cart != nullptr)
+    {
+        emulator.Cart->MapperChip->TiltingCart = tilting;
+    }
+
+    emulator.TriCNESCPP_HWACCEL = false; //GetMenuItemChecked(settings, BTN_NTSCGPU);
 
     emulator.PPU_ShowRawNTSCSignal = GetMenuItemChecked(settings, BTN_NTSCRAW);
 
@@ -432,6 +457,18 @@ MENU_CALLBACK(setPPU)
 {
     powered = false;
     power(NULL);
+}
+
+MENU_CALLBACK(setPins0)
+{
+    SetMenuItemChecked(connector0, caller, !GetMenuItemChecked(connector0, caller));
+    syncSettings(NULL);
+}
+
+MENU_CALLBACK(setPins1)
+{
+    SetMenuItemChecked(connector1, caller, !GetMenuItemChecked(connector1, caller));
+    syncSettings(NULL);
 }
 
 void InitMenuBar()
@@ -666,4 +703,91 @@ void InitMenuBar()
     tools = AddMenu(menuBar, "&Tools");
 
     AddMenuItem(tools, BTN_NTVIEWER, "Nametable Viewer", openNTViewer);
+
+    connector0 = AddSubMenu(tools, "Cartridge Connector (front/top)");
+    connector1 = AddSubMenu(tools, "Cartridge Connector (back/bottom)");
+
+    AddMenuItem(connector0, BTN_PIN35, "+5V", setPins0);
+    AddMenuItem(connector0, BTN_PIN34, "CIC toMB", setPins0);
+    AddMenuItem(connector0, BTN_PIN33, "CIC toPak", setPins0);
+    AddMenuItem(connector0, BTN_PIN32, "PPU D3", setPins0);
+    AddMenuItem(connector0, BTN_PIN31, "PPU D2", setPins0);
+    AddMenuItem(connector0, BTN_PIN30, "PPU D1", setPins0);
+    AddMenuItem(connector0, BTN_PIN29, "PPU D0", setPins0);
+    AddMenuItem(connector0, BTN_PIN28, "PPU A0", setPins0);
+    AddMenuItem(connector0, BTN_PIN27, "PPU A1", setPins0);
+    AddMenuItem(connector0, BTN_PIN26, "PPU A2", setPins0);
+    AddMenuItem(connector0, BTN_PIN25, "PPU A3", setPins0);
+    AddMenuItem(connector0, BTN_PIN24, "PPU A4", setPins0);
+    AddMenuItem(connector0, BTN_PIN23, "PPU A5", setPins0);
+    AddMenuItem(connector0, BTN_PIN22, "PPU A6", setPins0);
+    AddMenuItem(connector0, BTN_PIN21, "CIRAM A10", setPins0);
+    AddMenuItem(connector0, BTN_PIN20, "PPU /RD", setPins0);
+    AddMenuItem(connector0, BTN_PIN19, "EXP 4", setPins0);
+    AddMenuItem(connector0, BTN_PIN18, "EXP 3", setPins0);
+    AddMenuItem(connector0, BTN_PIN17, "EXP 2", setPins0);
+    AddMenuItem(connector0, BTN_PIN16, "EXP 1", setPins0);
+    AddMenuItem(connector0, BTN_PIN15, "EXP 0", setPins0);
+    AddMenuItem(connector0, BTN_PIN14, "/IRQ", setPins0);
+    AddMenuItem(connector0, BTN_PIN13, "CPU R/W", setPins0);
+    AddMenuItem(connector0, BTN_PIN12, "CPU A0", setPins0);
+    AddMenuItem(connector0, BTN_PIN11, "CPU A1", setPins0);
+    AddMenuItem(connector0, BTN_PIN10, "CPU A2", setPins0);
+    AddMenuItem(connector0, BTN_PIN09, "CPU A3", setPins0);
+    AddMenuItem(connector0, BTN_PIN08, "CPU A4", setPins0);
+    AddMenuItem(connector0, BTN_PIN07, "CPU A5", setPins0);
+    AddMenuItem(connector0, BTN_PIN06, "CPU A6", setPins0);
+    AddMenuItem(connector0, BTN_PIN05, "CPU A7", setPins0);
+    AddMenuItem(connector0, BTN_PIN04, "CPU A8", setPins0);
+    AddMenuItem(connector0, BTN_PIN03, "CPU A9", setPins0);
+    AddMenuItem(connector0, BTN_PIN02, "CPU A10", setPins0);
+    AddMenuItem(connector0, BTN_PIN01, "CPU A11", setPins0);
+    AddMenuItem(connector0, BTN_PIN00, "GND", setPins0);
+
+    AddMenuItem(connector1, BTN_PIN71, "GND", setPins1);
+    AddMenuItem(connector1, BTN_PIN70, "CIC CLK", setPins1);
+    AddMenuItem(connector1, BTN_PIN69, "CIC +RST", setPins1);
+    AddMenuItem(connector1, BTN_PIN68, "PPU D4", setPins1);
+    AddMenuItem(connector1, BTN_PIN67, "PPU D5", setPins1);
+    AddMenuItem(connector1, BTN_PIN66, "PPU D6", setPins1);
+    AddMenuItem(connector1, BTN_PIN65, "PPU D7", setPins1);
+    AddMenuItem(connector1, BTN_PIN64, "PPU A13", setPins1);
+    AddMenuItem(connector1, BTN_PIN63, "PPU A12", setPins1);
+    AddMenuItem(connector1, BTN_PIN62, "PPU A10", setPins1);
+    AddMenuItem(connector1, BTN_PIN61, "PPU A11", setPins1);
+    AddMenuItem(connector1, BTN_PIN60, "PPU A9", setPins1);
+    AddMenuItem(connector1, BTN_PIN59, "PPU A8", setPins1);
+    AddMenuItem(connector1, BTN_PIN58, "PPU A7", setPins1);
+    AddMenuItem(connector1, BTN_PIN57, "PPU /A13", setPins1);
+    AddMenuItem(connector1, BTN_PIN56, "CIRAM /CE", setPins1);
+    AddMenuItem(connector1, BTN_PIN55, "PPU /WR", setPins1);
+    AddMenuItem(connector1, BTN_PIN54, "EXP 5", setPins1);
+    AddMenuItem(connector1, BTN_PIN53, "EXP 6", setPins1);
+    AddMenuItem(connector1, BTN_PIN52, "EXP 7", setPins1);
+    AddMenuItem(connector1, BTN_PIN51, "EXP 8", setPins1);
+    AddMenuItem(connector1, BTN_PIN50, "EXP 9", setPins1);
+    AddMenuItem(connector1, BTN_PIN49, "CPU /A15", setPins1);
+    AddMenuItem(connector1, BTN_PIN48, "CPU D0", setPins1);
+    AddMenuItem(connector1, BTN_PIN47, "CPU D1", setPins1);
+    AddMenuItem(connector1, BTN_PIN46, "CPU D2", setPins1);
+    AddMenuItem(connector1, BTN_PIN45, "CPU D3", setPins1);
+    AddMenuItem(connector1, BTN_PIN44, "CPU D4", setPins1);
+    AddMenuItem(connector1, BTN_PIN43, "CPU D5", setPins1);
+    AddMenuItem(connector1, BTN_PIN42, "CPU D6", setPins1);
+    AddMenuItem(connector1, BTN_PIN41, "CPU D7", setPins1);
+    AddMenuItem(connector1, BTN_PIN40, "CPU A14", setPins1);
+    AddMenuItem(connector1, BTN_PIN39, "CPU A13", setPins1);
+    AddMenuItem(connector1, BTN_PIN38, "CPU A12", setPins1);
+    AddMenuItem(connector1, BTN_PIN37, "M2", setPins1);
+    AddMenuItem(connector1, BTN_PIN36, "SYSTEM CLK", setPins1);
+
+    for (int i = BTN_PIN00; i <= BTN_PIN35; i++)
+    {
+        SetMenuItemChecked(connector0, i, true);
+    }
+
+    for (int i = BTN_PIN36; i <= BTN_PIN71; i++)
+    {
+        SetMenuItemChecked(connector1, i, true);
+    }
 }
