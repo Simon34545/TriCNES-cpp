@@ -9517,6 +9517,7 @@ namespace TriCNES
 
             dataBus = Input;
 
+            internalBus = dataBus;
         }
 
         void StorePPURegisters(ushort Addr, byte In)
