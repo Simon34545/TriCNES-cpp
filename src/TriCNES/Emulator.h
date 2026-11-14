@@ -72,13 +72,17 @@ namespace TriCNES
     public:
         Cartridge* Cart = nullptr;
 
-        ushort CPU_AddressIn; // internal to the cartridge
-        byte CPU_DataIn; // internal to the cartridge
-        byte CPU_DataOut; // internal to the cartridge
+        bool TiltingCart = false; // If you are using the GUI to mess with pins on the 72-pin connector. When false, we can optimize things a little.
 
-        ushort PPU_AddressIn; // internal to the cartridge
-        byte PPU_DataIn; // internal to the cartridge
-        byte PPU_DataOut; // internal to the cartridge
+        ushort CPU_AddressIn = 0; // internal to the cartridge
+        byte CPU_DataIn = 0; // internal to the cartridge
+        byte CPU_DataOut = 0; // internal to the cartridge
+        byte CPU_NonTiltData = 0; //If you are not using the GUI to mess with pins on the 72-pin connector, we can optimize a little bit.
+
+        ushort PPU_AddressIn = 0; // internal to the cartridge
+        byte PPU_DataIn = 0; // internal to the cartridge
+        byte PPU_DataOut = 0; // internal to the cartridge
+        byte PPU_NonTiltData = 0; //If you are not using the GUI to mess with pins on the 72-pin connector, we can optimize a little bit.
 
         // Default to NROM behavior.
         virtual void FetchCPU();
@@ -247,9 +251,9 @@ namespace TriCNES
         byte CPUClock = 0;    // Counts down from 12. When it's 0, a CPU cycle occurs.
         byte MasterClock = 0; // Counts up every master clock cycle. Resets at 24.
 
-        byte CICClock; // Seperate from the Master clock, we have the clock of the CIC chip.
-        bool ResetMode; // If the CIC chip was tripped, the console will reset approximately every second.
-        int ResetModeCounter; // Counter to reset teh console after the correct amount of time has passed.
+        byte CICClock = 0; // Seperate from the Master clock, we have the clock of the CIC chip.
+        bool ResetMode = false; // If the CIC chip was tripped, the console will reset approximately every second.
+        int ResetModeCounter = 0; // Counter to reset teh console after the correct amount of time has passed.
 
         bool* SeventyTwoPinConnector; // The 72 pin connector.
         bool* ConnectorPinFloating; // Toggle which pins are disconnected.
@@ -1863,7 +1867,7 @@ namespace TriCNES
 
         }
 
-        bool PPUActiveForShiftRegisterUpdate;
+        bool PPUActiveForShiftRegisterUpdate = false;
         void _EmulateHalfPPU()
         {
             // Oh boy, it's time for half PPU cycles.            

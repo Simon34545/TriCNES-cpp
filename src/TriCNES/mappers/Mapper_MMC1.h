@@ -194,9 +194,11 @@ namespace TriCNES
         }
         void Connector_CheckCIRAM() override
         {
-            if (!Cart->Emu->ConnectorPinFloating[56]) { Cart->Emu->SeventyTwoPinConnector[56] = Cart->Emu->SeventyTwoPinConnector[57]; }
-            switch (Mapper_1_Control & 3)
+            if (TiltingCart)
             {
+                if (!Cart->Emu->ConnectorPinFloating[56]) { Cart->Emu->SeventyTwoPinConnector[56] = Cart->Emu->SeventyTwoPinConnector[57]; }
+                switch (Mapper_1_Control & 3)
+                {
                 case 0: //one screen, low
                     if (!Cart->Emu->ConnectorPinFloating[21]) { Cart->Emu->SeventyTwoPinConnector[21] = false; }
                     break;
@@ -208,8 +210,27 @@ namespace TriCNES
                     break;
                 case 3: //horizontal
                     if (!Cart->Emu->ConnectorPinFloating[21]) { Cart->Emu->SeventyTwoPinConnector[21] = Cart->Emu->SeventyTwoPinConnector[61]; }
-
                     break;
+                }
+            }
+            else
+            {
+                Cart->Emu->SeventyTwoPinConnector[56] = (Cart->Emu->PPU_AddressBus & 0x2000) == 0;
+                switch (Mapper_1_Control & 3)
+                {
+                case 0: //one screen, low
+                    Cart->Emu->SeventyTwoPinConnector[21] = false;
+                    break;
+                case 1: //one screen, high
+                    Cart->Emu->SeventyTwoPinConnector[21] = true;
+                    break;
+                case 2: //vertical
+                    Cart->Emu->SeventyTwoPinConnector[21] = (Cart->Emu->PPU_AddressBus & 0x400) != 0;
+                    break;
+                case 3: //horizontal
+                    Cart->Emu->SeventyTwoPinConnector[21] = (Cart->Emu->PPU_AddressBus & 0x800) != 0;
+                    break;
+                }
             }
         }
         byte SnoopPPU(ushort Address) override // For debug purposes. It's a bit clunky having to set this up for every mapper with a non-NROM CIRAM setup.
