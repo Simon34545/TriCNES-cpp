@@ -719,6 +719,8 @@ namespace TriCNES
                     break;
             }
 
+            APU_DMC_LFSR = 0; // Technically it would take a few microseconds of the reset button being held down for this to be shifted to all zeroes.
+
             DoReset = true;
             PPU_RESET = false; // I'm not even 100% certain my console has this behavior. I'll set it to false for now.
             // in theory, the CPU/PPU clock would be given random values. Let's just assume no changes.
@@ -961,6 +963,29 @@ namespace TriCNES
         // LookUp Table for how many CPU cycles are between each bit of the DPCM sample being played. (8 bits per byte, so to calculate how many cycles there are between each DMA, multiply these numbers by 8)
         static constexpr ushort APU_DMCRateLUT[] = {428, 380, 340, 320, 286, 254, 226, 214, 190, 160, 142, 128, 106, 84, 72, 54};
 
+        static constexpr ushort APU_DMCRate_LFSR_LUT[] = {
+        0x173, // 0
+        0x08A, // 1
+        0x143, // 2
+        0x0DB, // 3
+        0x1EE, // 4
+        0x03F, // 5
+        0x07D, // 6
+        0x1D1, // 7
+        0x009, // 8
+        0x0DC, // 9
+        0x0F1, // 10
+        0x0F9, // 11
+        0x08D, // 12
+        0x189, // 13
+        0x18E, // 14
+        0x156  // 15
+        };
+
+        byte APU_DMC_Rate4 = 15;
+
+        ushort APU_DMC_LFSR = 0;
+
         // $4011 (and DPCM stuff)
         byte APU_DMC_Output = 0; // Directly writing here (Address $4011) will set the DMC output. This is how you play PCM audio.
 
@@ -980,6 +1005,75 @@ namespace TriCNES
         bool APU_Silent = true;  // If the APU is not making any noise, this is set.
 
     private:
+        void APU_DMC_StepLFSR()
+        {
+            bool LFSR_0 = (APU_DMC_LFSR & 1) == 1;
+            bool LFSR_4 = (APU_DMC_LFSR & 16) == 16;
+            bool LFSR_ZeroDetector = APU_DMC_LFSR == 0;
+            bool LFSR_Expired = APU_DMC_LFSR == 0x1;
+
+            bool _A = (LFSR_0 && LFSR_4);
+            bool _N = !(LFSR_0 || LFSR_4 || LFSR_ZeroDetector);
+            bool ShiftIn = !(_A || _N);
+
+            if (LFSR_Expired)
+            {
+                APU_DMC_LFSR = APU_DMCRate_LFSR_LUT[APU_DMC_Rate4];
+                APU_DMC_StepSample();
+            }
+            else
+            {
+                APU_DMC_LFSR >>= 1;
+                APU_DMC_LFSR |= (ushort)(ShiftIn ? 0x100 : 0);
+            }
+        }
+
+        void APU_DMC_StepSample()
+        {
+            DPCM_Up = (APU_DMC_Shifter & 1) == 1;
+            if (DPCM_Up)
+            {
+                if (APU_DMC_Output <= 125) // this is 7 bit, and cannot go above 127
+                {
+                    APU_DMC_Output += 2;
+                }
+            }
+            else
+            {
+                if (APU_DMC_Output >= 2) // this is 7 bit, and cannot go below 0
+                {
+                    APU_DMC_Output -= 2;
+                }
+            }
+            APU_DMC_Shifter >>= 1; // shift the bits in the shift register
+            APU_DMC_ShifterBitsRemaining--; // and decrement the "bits remaining" counter.
+            if (APU_DMC_ShifterBitsRemaining == 0) // If there are no bits left,
+            {
+                APU_DMC_ShifterBitsRemaining = 8; // it's time for a DMC DMA!
+
+                if (APU_DMC_BytesRemaining > 0 || APU_SetImplicitAbortDMC4015)
+                {
+                    if (!DoDMCDMA && CannotRunDMCDMARightNow != 2)
+                    {
+                        // if playing a sample:
+                        DoDMCDMA = true;
+                        DMCDMA_Halt = true;
+                    }
+                    if (APU_SetImplicitAbortDMC4015)
+                    {
+                        APU_ImplicitAbortDMC4015 = true; // check for weird DMA abort behavior
+                        APU_SetImplicitAbortDMC4015 = false;
+                    }
+                    APU_DMC_Shifter = APU_DMC_Buffer; // and set up the shifter with the new values.
+                    APU_Silent = false; // The APU is not silent.
+
+                }
+                else
+                {
+                    APU_Silent = true;
+                }
+            }
+        }
         void _EmulateAPU()
         {
             // This runs every 12 master clock cycles, though has different logic for even/odd CPU cycles.
@@ -1069,6 +1163,7 @@ namespace TriCNES
                 APU_ChannelTimer_Pulse2--;
                 APU_ChannelTimer_Noise--;
 
+                APU_DMC_StepLFSR();
 
                 //this happens whether a sample is playing or not
                 APU_ChannelTimer_DMC--;
@@ -1076,49 +1171,7 @@ namespace TriCNES
                 if (APU_ChannelTimer_DMC == 0)
                 {
                     APU_ChannelTimer_DMC = APU_DMC_Rate;
-                    DPCM_Up = (APU_DMC_Shifter & 1) == 1;
-                    if (DPCM_Up)
-                    {
-                        if (APU_DMC_Output <= 125) // this is 7 bit, and cannot go above 127
-                        {
-                            APU_DMC_Output += 2;
-                        }
-                    }
-                    else
-                    {
-                        if (APU_DMC_Output >= 2) // this is 7 bit, and cannot go below 0
-                        {
-                            APU_DMC_Output -= 2;
-                        }
-                    }
-                    APU_DMC_Shifter >>= 1; // shift the bits in the shift register
-                    APU_DMC_ShifterBitsRemaining--; // and decrement the "bits remaining" counter.
-                    if (APU_DMC_ShifterBitsRemaining == 0) // If there are no bits left,
-                    {
-                        APU_DMC_ShifterBitsRemaining = 8; // it's time for a DMC DMA!
-
-                        if (APU_DMC_BytesRemaining > 0 || APU_SetImplicitAbortDMC4015)
-                        {
-                            if (!DoDMCDMA && CannotRunDMCDMARightNow != 2)
-                            {
-                                // if playing a sample:
-                                DoDMCDMA = true;
-                                DMCDMA_Halt = true;
-                            }
-                            if (APU_SetImplicitAbortDMC4015)
-                            {
-                                APU_ImplicitAbortDMC4015 = true; // check for weird DMA abort behavior
-                                APU_SetImplicitAbortDMC4015 = false;
-                            }
-                            APU_DMC_Shifter = APU_DMC_Buffer; // and set up the shifter with the new values.
-                            APU_Silent = false; // The APU is not silent.
-
-                        }
-                        else
-                        {
-                            APU_Silent = true;
-                        }
-                    }
+                    //APU_DMC_StepSample();
                 }
                 if (CannotRunDMCDMARightNow > 0)
                 {
@@ -1866,26 +1919,30 @@ namespace TriCNES
         void WriteVideoMemory(byte input)
         {
             Cart->MapperChip->Connector_SetUpPPUAddressPins();
-            Cart->MapperChip->Connector_CheckCIRAM();
-            bool CE = !SeventyTwoPinConnector[56] && !ConnectorPinFloating[56] && !ConnectorPinFloating[57];
+            Cart->MapperChip->Connector_SetUpPPUDataPins(input);
 
-            if ((PPU_AddressBus & 0x3FFF) >= 0x3F00)
+            if (PPU_2007_PaletteRAMEnable)
             {
                 PaletteRAM[PPU_AddressBus & (((PPU_AddressBus & 0x3) == 0) ? 0x0F : 0x1F)] = input;
             }
-            else if (CE)
+            if (PPU_WRITE)
             {
-                // We're writing to on-console VRAM, not the cartridge.
-                // NOTE: In theory you could trigger bus conflicts with this. I'm currently just assuming the bus is free.
-                ushort Address = (ushort)((PPU_AddressBus & 0x300) | PPU_OctalLatch);
-                Address |= (ushort)(SeventyTwoPinConnector[21] ? 0x400 : 0);
-                VRAM[Address] = input;
-            }
-            else
-            {
-                Cart->MapperChip->Connector_SetUpPPUDataPins(input);
-                Cart->MapperChip->Connector_PPU_RW(PPU_READ, PPU_WRITE);
-                Cart->MapperChip->AccessPPU();
+                Cart->MapperChip->Connector_CheckCIRAM();
+                bool CE = !SeventyTwoPinConnector[56] && !ConnectorPinFloating[56] && !ConnectorPinFloating[57];
+
+                if (CE)
+                {
+                    // We're writing to on-console VRAM, not the cartridge.
+                    // NOTE: In theory you could trigger bus conflicts with this. I'm currently just assuming the bus is free.
+                    ushort Address = (ushort)((PPU_AddressBus & 0x300) | PPU_OctalLatch);
+                    Address |= (ushort)(SeventyTwoPinConnector[21] ? 0x400 : 0);
+                    VRAM[Address] = input;
+                }
+                else
+                {
+                    Cart->MapperChip->Connector_PPU_RW(PPU_READ, PPU_WRITE);
+                    Cart->MapperChip->AccessPPU();
+                }
             }
 
         }
@@ -2074,6 +2131,13 @@ namespace TriCNES
             if (PPU_2007_DB_PAR) // Using PAR instead of PPU_WRITE, since I re-use WriteVideoMemory() for writes to palette RAM.
             {
                 WriteVideoMemory(PPU_2007_WriteData);
+                if (PPU_ALE)
+                {
+                    PPU_OctalLatch = (byte)PPU_2007_WriteData;
+                    // Hey look at that, we just wrote to VRAM but uh... the octal latch has changed.
+                    // Run it back!
+                    WriteVideoMemory(PPU_2007_WriteData);
+                }
             }
         }
 
@@ -2893,11 +2957,11 @@ namespace TriCNES
                                     else
                                     {
                                         NineObjectsOnThisScanline = true;
-                                        PPUOAMAddress++;
                                         if (!PPUStatus_SpriteOverflow)// if secondary OAM is full, yet another object is on this scanline
                                         {
                                             PPUStatus_SpriteOverflow = true; // set the sprite overflow flag
                                         }
+                                        PPUOAMAddress++;
                                     }
                                     if (!SpriteEval_ReadOnly_PreRenderLine)
                                     {
@@ -9428,7 +9492,8 @@ namespace TriCNES
                     case 0x4010:
                         APU_DMC_EnableIRQ = (Input & 0x80) != 0;
                         APU_DMC_Loop = (Input & 0x40) != 0;
-                        APU_DMC_Rate = APU_DMCRateLUT[Input & 0xF];
+                        APU_DMC_Rate4 = (byte)(Input & 0xF);
+                        APU_DMC_Rate = APU_DMCRateLUT[Input & 0xF]; // Only keeping this around for debug logging purposes. I'm using an LFSR now isntead of a counter.
                         if (!APU_DMC_EnableIRQ)
                         {
                             APU_Status_DMCInterrupt = false;
@@ -9484,14 +9549,14 @@ namespace TriCNES
                         IRQ_LevelDetector = false;
 
                         // Explicit abort stuff.
-                        if (!APU_Status_DelayedDMC && ((APU_ChannelTimer_DMC == 2 && !APU_PutCycle) || (APU_ChannelTimer_DMC == APU_DMC_Rate && APU_PutCycle))) // this will be the APU cycle that fires a DMC DMA
+                        if (!APU_Status_DelayedDMC && ((APU_DMC_LFSR == 1 && !APU_PutCycle) || (APU_DMC_LFSR == APU_DMCRate_LFSR_LUT[APU_DMC_Rate4] && APU_PutCycle))) // this will be the APU cycle that fires a DMC DMA
                         {
                             APU_DelayedDMC4015 = (byte)(APU_PutCycle ? 5 : 6); // Disable in 2.5 APU cycles, or 3 APU cycles.
                             // basically, if the DMA has already begun, don't abort it for *this* edge case.
                         }
 
                         // Implicit abort stuff.
-                        if (APU_Status_DelayedDMC && ((APU_ChannelTimer_DMC == 10 && !APU_PutCycle) || (APU_ChannelTimer_DMC == 8 && APU_PutCycle)))
+                        if (APU_Status_DelayedDMC && ((APU_DMC_LFSR == 17 && !APU_PutCycle) || (APU_DMC_LFSR == 8 && APU_PutCycle)))
                         {
                             // okay, so the series of events is as follows:
                             // the Load DMA will occur
@@ -10858,6 +10923,10 @@ namespace TriCNES
 
             State.push_back(PPU_RenderingCounter);
 
+            State.push_back((byte)APU_DMC_LFSR);
+            State.push_back((byte)(APU_DMC_LFSR >> 8));
+            State.push_back(APU_DMC_Rate4);
+
             State.push_back(PPU_Update2001Delay);              // TEMPORARY
             State.push_back(PPU_Update2001OAMCorruptionDelay); // TEMPORARY
             State.push_back(PPU_Update2001EmphasisBitsDelay);  // TEMPORARY
@@ -11165,6 +11234,10 @@ namespace TriCNES
             PPU_WRITE = (State[p++] & 1) == 1;
 
             PPU_RenderingCounter = State[p++];
+
+            APU_DMC_LFSR = State[p++];
+            APU_DMC_LFSR |= (ushort)(State[p++] << 8);
+            APU_DMC_Rate4 = State[p++];
             
             PPU_Update2001Delay = State[p++];              //TEMPORARY
             PPU_Update2001OAMCorruptionDelay = State[p++]; //TEMPORARY
