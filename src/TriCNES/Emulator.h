@@ -4759,10 +4759,10 @@ namespace TriCNES
                                 }
                                 break;
                             case 2:
+                                addressBus = programCounter;
                                 Fetch(addressBus); // dummy read
                                 temporaryAddress = (ushort)(programCounter + ((dl >= 0x80) ? -(256 - dl) : dl));
                                 programCounter = (ushort)((programCounter & 0xFF00) | (byte)((programCounter & 0xFF) + dl));
-                                addressBus = programCounter;
                                 if ((temporaryAddress & 0xFF00) == (programCounter & 0xFF00))
                                 {
                                     CompleteOperation();
@@ -4770,6 +4770,7 @@ namespace TriCNES
                                 break;
                             case 3: // read from address
                                 PollInterrupts_CantDisableIRQ(); // If the first poll detected an IRQ, this second poll should not be allowed to un-set the IRQ.
+                                addressBus = programCounter;
                                 Fetch(addressBus); // dummy read
                                 programCounter = (ushort)((programCounter & 0xFF) | (temporaryAddress & 0xFF00));
                                 CompleteOperation();
@@ -5361,10 +5362,10 @@ namespace TriCNES
                                 }
                                 break;
                             case 2:
+                                addressBus = programCounter;
                                 Fetch(addressBus); // dummy read
                                 temporaryAddress = (ushort)(programCounter + ((dl >= 0x80) ? -(256 - dl) : dl));
                                 programCounter = (ushort)((programCounter & 0xFF00) | (byte)((programCounter & 0xFF) + dl));
-                                addressBus = programCounter;
                                 if ((temporaryAddress & 0xFF00) == (programCounter & 0xFF00))
                                 {
                                     CompleteOperation();
@@ -5372,6 +5373,7 @@ namespace TriCNES
                                 break;
                             case 3: // read from address
                                 PollInterrupts_CantDisableIRQ(); // If the first poll detected an IRQ, this second poll should not be allowed to un-set the IRQ.
+                                addressBus = programCounter;
                                 Fetch(addressBus); // dummy read
                                 programCounter = (ushort)((programCounter & 0xFF) | (temporaryAddress & 0xFF00));
                                 CompleteOperation();
@@ -5948,10 +5950,10 @@ namespace TriCNES
                                 }
                                 break;
                             case 2:
+                                addressBus = programCounter;
                                 Fetch(addressBus); // dummy read
                                 temporaryAddress = (ushort)(programCounter + ((dl >= 0x80) ? -(256 - dl) : dl));
                                 programCounter = (ushort)((programCounter & 0xFF00) | (byte)((programCounter & 0xFF) + dl));
-                                addressBus = programCounter;
                                 if ((temporaryAddress & 0xFF00) == (programCounter & 0xFF00))
                                 {
                                     CompleteOperation();
@@ -5959,6 +5961,7 @@ namespace TriCNES
                                 break;
                             case 3: // read from address
                                 PollInterrupts_CantDisableIRQ(); // If the first poll detected an IRQ, this second poll should not be allowed to un-set the IRQ.
+                                addressBus = programCounter;
                                 Fetch(addressBus); // dummy read
                                 programCounter = (ushort)((programCounter & 0xFF) | (temporaryAddress & 0xFF00));
                                 CompleteOperation();
@@ -6547,10 +6550,10 @@ namespace TriCNES
                                 }
                                 break;
                             case 2:
+                                addressBus = programCounter;
                                 Fetch(addressBus); // dummy read
                                 temporaryAddress = (ushort)(programCounter + ((dl >= 0x80) ? -(256 - dl) : dl));
                                 programCounter = (ushort)((programCounter & 0xFF00) | (byte)((programCounter & 0xFF) + dl));
-                                addressBus = programCounter;
                                 if ((temporaryAddress & 0xFF00) == (programCounter & 0xFF00))
                                 {
                                     CompleteOperation();
@@ -6558,6 +6561,7 @@ namespace TriCNES
                                 break;
                             case 3: // read from address
                                 PollInterrupts_CantDisableIRQ(); // If the first poll detected an IRQ, this second poll should not be allowed to un-set the IRQ.
+                                addressBus = programCounter;
                                 Fetch(addressBus); // dummy read
                                 programCounter = (ushort)((programCounter & 0xFF) | (temporaryAddress & 0xFF00));
                                 CompleteOperation();
@@ -7056,10 +7060,10 @@ namespace TriCNES
                                 }
                                 break;
                             case 2:
+                                addressBus = programCounter;
                                 Fetch(addressBus); // dummy read
                                 temporaryAddress = (ushort)(programCounter + ((dl >= 0x80) ? -(256 - dl) : dl));
                                 programCounter = (ushort)((programCounter & 0xFF00) | (byte)((programCounter & 0xFF) + dl));
-                                addressBus = programCounter;
                                 if ((temporaryAddress & 0xFF00) == (programCounter & 0xFF00))
                                 {
                                     CompleteOperation();
@@ -7067,6 +7071,7 @@ namespace TriCNES
                                 break;
                             case 3: // read from address
                                 PollInterrupts_CantDisableIRQ(); // If the first poll detected an IRQ, this second poll should not be allowed to un-set the IRQ.
+                                addressBus = programCounter;
                                 Fetch(addressBus); // dummy read
                                 programCounter = (ushort)((programCounter & 0xFF) | (temporaryAddress & 0xFF00));
                                 CompleteOperation();
@@ -7622,10 +7627,10 @@ namespace TriCNES
                                 }
                                 break;
                             case 2:
+                                addressBus = programCounter;
                                 Fetch(addressBus); // dummy read
                                 temporaryAddress = (ushort)(programCounter + ((dl >= 0x80) ? -(256 - dl) : dl));
                                 programCounter = (ushort)((programCounter & 0xFF00) | (byte)((programCounter & 0xFF) + dl));
-                                addressBus = programCounter;
                                 if ((temporaryAddress & 0xFF00) == (programCounter & 0xFF00))
                                 {
                                     CompleteOperation();
@@ -7633,6 +7638,7 @@ namespace TriCNES
                                 break;
                             case 3: // read from address
                                 PollInterrupts_CantDisableIRQ(); // If the first poll detected an IRQ, this second poll should not be allowed to un-set the IRQ.
+                                addressBus = programCounter;
                                 Fetch(addressBus); // dummy read
                                 programCounter = (ushort)((programCounter & 0xFF) | (temporaryAddress & 0xFF00));
                                 CompleteOperation();
@@ -8166,10 +8172,10 @@ namespace TriCNES
                                 }
                                 break;
                             case 2:
+                                addressBus = programCounter;
                                 Fetch(addressBus); // dummy read
                                 temporaryAddress = (ushort)(programCounter + ((dl >= 0x80) ? -(256 - dl) : dl));
                                 programCounter = (ushort)((programCounter & 0xFF00) | (byte)((programCounter & 0xFF) + dl));
-                                addressBus = programCounter;
                                 if ((temporaryAddress & 0xFF00) == (programCounter & 0xFF00))
                                 {
                                     CompleteOperation();
@@ -8177,6 +8183,7 @@ namespace TriCNES
                                 break;
                             case 3: // read from address
                                 PollInterrupts_CantDisableIRQ(); // If the first poll detected an IRQ, this second poll should not be allowed to un-set the IRQ.
+                                addressBus = programCounter;
                                 Fetch(addressBus); // dummy read
                                 programCounter = (ushort)((programCounter & 0xFF) | (temporaryAddress & 0xFF00));
                                 CompleteOperation();
@@ -8707,10 +8714,10 @@ namespace TriCNES
                                 }
                                 break;
                             case 2:
+                                addressBus = programCounter;
                                 Fetch(addressBus); // dummy read
                                 temporaryAddress = (ushort)(programCounter + ((dl >= 0x80) ? -(256 - dl) : dl));
                                 programCounter = (ushort)((programCounter & 0xFF00) | (byte)((programCounter & 0xFF) + dl));
-                                addressBus = programCounter;
                                 if ((temporaryAddress & 0xFF00) == (programCounter & 0xFF00))
                                 {
                                     CompleteOperation();
@@ -8718,6 +8725,7 @@ namespace TriCNES
                                 break;
                             case 3: // read from address
                                 PollInterrupts_CantDisableIRQ(); // If the first poll detected an IRQ, this second poll should not be allowed to un-set the IRQ.
+                                addressBus = programCounter;
                                 Fetch(addressBus); // dummy read
                                 programCounter = (ushort)((programCounter & 0xFF) | (temporaryAddress & 0xFF00));
                                 CompleteOperation();
